@@ -76,8 +76,8 @@ class CycleGANModel(BaseModel):
         self.netG_B = networks.define_G(opt.output_nc, opt.input_nc, opt.ngf, opt.netG, opt.norm,
                                         not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        self.netS_A =  networks.define_S(opt.input_nc, opt.output_nc, opt.nsf, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
-        self.netS_B =  networks.define_S(opt.input_nc, opt.output_nc, opt.nsf, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netS_A =  networks.define_S(opt.input_nc, opt.seg_output_nc, opt.nsf, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netS_B =  networks.define_S(opt.input_nc, opt.seg_output_nc, opt.nsf, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
 
         if self.isTrain:  # define discriminators
             self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
@@ -117,11 +117,10 @@ class CycleGANModel(BaseModel):
         # When using 1 batch size to hack 2D network:
         # self.real_A = torch.from_numpy(np.rollaxis(input['ct' if AtoB else 'mr'].squeeze(0).numpy(), -1, 0)).to(self.device)
         # self.real_B = torch.from_numpy(np.rollaxis(input['mr' if AtoB else 'ct'].squeeze(0).numpy(), -1, 0)).to(self.device)
-
-        self.real_A = input['ct' if AtoB else 'mr'].to(self.device)
-        self.real_seg_A = input['ct_label' if AtoB else 'mr_label'].to(self.device)
-        self.real_B = input['mr' if AtoB else 'ct'].to(self.device)       
-        self.real_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device)       
+        self.real_A = input['ct' if AtoB else 'mr']["t1"]["data"].to(self.device)
+        self.real_seg_A = input['ct' if AtoB else 'mr']["label"]["data"].to(self.device)
+        self.real_B = input['mr' if AtoB else 'ct']["t1"]["data"].to(self.device)       
+        self.real_seg_B = input['mr' if AtoB else 'ct']["label"]["data"].to(self.device)       
         self.image_paths = input['ct_paths' if AtoB else 'mr_paths']
 
     def forward(self):
@@ -197,25 +196,27 @@ class CycleGANModel(BaseModel):
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         # combined loss and calculate gradients
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_S
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
         self.loss_G.backward()
 
     def backward_S(self):
         """Calculate the loss for segmentors S_A and S_B"""
-        lambda_A = self.opt.lambda_A
-        lambda_B = self.opt.lambda_B
-        self.loss_S_A = self.criterionCycle(self.seg_A, self.real_seg_A) * lambda_A
-        self.loss_S_B = self.criterionCycle(self.seg_B, self.real_seg_B) * lambda_B
-        self.loss_S_AB = self.criterionCycle(self.seg_fake_A, self.real_seg_B) * lambda_A
-        self.loss_S_BA = self.criterionCycle(self.seg_fake_B, self.real_seg_A) * lambda_B
-        # loss = torch.nn.CrossEntropyLoss()
-        # self.loss_S_A = loss(self.seg_A, self.real_seg_A.squeeze().long())
-        # self.loss_S_B = loss(self.seg_B, self.real_seg_B.squeeze().long())
-        # self.loss_S_AB = loss(self.seg_fake_A, self.real_seg_B.squeeze().long())
-        # self.loss_S_BA = loss(self.seg_fake_B, self.real_seg_A.squeeze().long())
+        # lambda_A = self.opt.lambda_A
+        # lambda_B = self.opt.lambda_B
+        # self.loss_S_A = self.criterionCycle(self.seg_A, self.real_seg_A) * lambda_A
+        # self.loss_S_B = self.criterionCycle(self.seg_B, self.real_seg_B) * lambda_B
+        # self.loss_S_AB = self.criterionCycle(self.seg_fake_A, self.real_seg_B) * lambda_A
+        # self.loss_S_BA = self.criterionCycle(self.seg_fake_B, self.real_seg_A) * lambda_B
+        loss = torch.nn.CrossEntropyLoss()
+        self.loss_S_A = loss(self.seg_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.real_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_B = loss(self.seg_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.real_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+        # self.loss_S_AB = loss(torch.cat((self.seg_fake_A.flatten(), 851), 0), self.real_seg_B.flatten().long())
+        # self.loss_S_BA = loss(torch.cat((self.seg_fake_B.flatten(), 851), 0), self.real_seg_A.flatten().long())
         # combined loss and calculate gradients
-        self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_AB + self.loss_S_BA
+        self.loss_S = self.loss_S_A + self.loss_S_B # + self.loss_S_AB + self.loss_S_BA
         self.loss_S.backward()
+
+
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
@@ -224,11 +225,6 @@ class CycleGANModel(BaseModel):
         
         # forward
         self.forward()      # compute fake images and reconstruction images.
-        # S_A and S_B
-        self.set_requires_grad([self.netS_A, self.netS_B], True) 
-        self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
-        self.backward_S()             # calculate gradients for S_A and S_B
-        self.optimizer_S.step()       # update S_A and S_B's weights
         # G_A and G_B
         self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
         self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
@@ -240,4 +236,9 @@ class CycleGANModel(BaseModel):
         self.backward_D_A()      # calculate gradients for D_A
         self.backward_D_B()      # calculate graidents for D_B
         self.optimizer_D.step()  # update D_A and D_B's weights
+        # S_A and S_B
+        self.set_requires_grad([self.netS_A, self.netS_B], True) 
+        self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
+        self.backward_S()             # calculate gradients for S_A and S_B
+        self.optimizer_S.step()       # update S_A and S_B's weights
 

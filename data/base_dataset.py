@@ -59,8 +59,12 @@ def get_params(opt, size):
         new_w = opt.load_size
         new_h = opt.load_size * h // w
 
+    
     x = random.randint(0, np.maximum(0, new_w - opt.crop_size))
     y = random.randint(0, np.maximum(0, new_h - opt.crop_size))
+    #FIX FOR TEST
+    # x = 128
+    # y=128
 
     flip = random.random() > 0.5
 
@@ -72,13 +76,13 @@ def get_transform(opt, params=None, convert=True):
 
 # 
     # Augmentations:
-    transform_list += [tio.RandomAnisotropy()]
-    max_displacement = 15, 15, 0
-    spatial_transforms = {
-        tio.RandomElasticDeformation(max_displacement=5, num_control_points=7, locked_borders=2) : 0.75
+    # transform_list += [tio.RandomAnisotropy()]
+    # max_displacement = 15, 15, 0
+    # spatial_transforms = {
+        # tio.RandomElasticDeformation(max_displacement=5, num_control_points=7, locked_borders=2) : 0.75
         # ,tio.RandomAffine(scales=(0.9, 1.2), degrees=10, isotropic=True, image_interpolation='nearest'): 0.25
-    }
-    transform_list += [tio.OneOf(spatial_transforms)]
+    # }
+    # transform_list += [tio.OneOf(spatial_transforms)]
     # transform_list += [tio.RandomElasticDeformation(max_displacement=max_displacement, locked_borders=2)]
     if convert:
         transform_list += [tio.RescaleIntensity((-1, 1))]

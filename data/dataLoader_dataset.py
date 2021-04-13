@@ -81,7 +81,22 @@ class DataLoaderDataset(BaseDataset):
         output_nc = self.opt.input_nc if mrtoct else self.opt.output_nc      # get the number of channels of output image
         self.transform_ct = get_transform(self.opt)
         self.transform_mr = get_transform(self.opt)
-
+        
+        # self.ct_subjects = []
+        # for (image_path, label_path) in zip(self.ct_paths, self.ct_paths_label):
+        #     subject = tio.Subject(
+        #         t1=tio.ScalarImage(image_path),
+        #         label=tio.LabelMap(label_path),
+        #     )
+        #     self.ct_subjects.append(subject)
+        
+        # self.mr_subjects = []
+        # for (image_path, label_path) in zip(self.mr_paths, self.mr_paths_label):
+        #     subject = tio.Subject(
+        #         t1=tio.ScalarImage(image_path),
+        #         label=tio.LabelMap(label_path),
+        #     )
+        #     self.mr_subjects.append(subject)
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -93,20 +108,24 @@ class DataLoaderDataset(BaseDataset):
             ct_paths (str)    -- image paths
             mr_paths (str)    -- image paths
         """
+
         ct_path = self.ct_paths[index % self.ct_size]  # make sure index is within then range
         ct_path_label = self.ct_paths_label[index % self.ct_size]  # make sure index is within then range
-
+        #FIX FOR TEST
+        # ct_path = self.ct_paths[1]  # make sure index is within then range
+        # ct_path_label = self.ct_paths_label[1]  # make sure index is within then range
         if self.opt.serial_batches:   # make sure index is within then range
             index_mr = index % self.mr_size
         else:   # randomize the index for domain B to avoid fixed pairs.
             index_mr = random.randint(0, self.mr_size - 1)
+
         mr_path = self.mr_paths[index_mr]
-        mr_path_label = self.mr_paths[index_mr]
+        mr_path_label = self.mr_paths_label[index_mr]
 
         ct_subject = tio.Subject(
             t1 = tio.ScalarImage(ct_path),
             label = tio.LabelMap(ct_path_label)
-        )         
+        )       
         
         mr_subject = tio.Subject(
             t1 = tio.ScalarImage(mr_path),
@@ -118,19 +137,16 @@ class DataLoaderDataset(BaseDataset):
         # ------------------------------------------------
         ct_subject_transformed = self.transform_ct(ct_subject)
         mr_subject_transformed = self.transform_mr(mr_subject)
+        
+        return {'ct': ct_subject_transformed, 'mr': mr_subject_transformed, 'ct_paths': ct_path, 'mr_paths': mr_path}
 
-        ct = ct_subject_transformed.t1.data
-        mr = mr_subject_transformed.t1.data
-        ct_label = ct_subject_transformed.label.data
-        mr_label = mr_subject_transformed.label.data
 
-        # print(ct.shape)
-        # print(mr.shape)
-        # print(ct_label.shape)
-        # print(mr_label.shape)
-
+        # ct = ct_subject_transformed.t1.data
+        # mr = mr_subject_transformed.t1.data
+        # ct_label = ct_subject_transformed.label.data
+        # mr_label = mr_subject_transformed.label.data
         # ------------------------------------------------
-        return {'ct': ct, 'mr': mr, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
+        # return {'ct': ct, 'mr': mr, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 
     def __len__(self):
         """Return the total number of images in the dataset.

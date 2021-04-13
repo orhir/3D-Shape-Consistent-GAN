@@ -13,7 +13,6 @@ import torch.utils.data
 import torch
 from data.base_dataset import BaseDataset
 
-
 def find_dataset_using_name(dataset_name):
     """Import the module "data/[dataset_name]_dataset.py".
     In the file, the class called DatasetNameDataset() will
@@ -70,7 +69,9 @@ class CustomDatasetDataLoader():
             self.dataset,
             batch_size=opt.batch_size,
             shuffle=not opt.serial_batches,
-            num_workers=int(opt.num_threads))
+            num_workers=int(opt.num_threads),
+            pin_memory=True
+            )
 
     def load_data(self):
         return self

@@ -4,7 +4,7 @@ from torch.nn import init
 import torch.nn.functional as F
 import functools
 from torch.optim import lr_scheduler
-
+from models.seg_buildingblocks import DoubleConv, ExtResNetBlock, create_encoders, create_decoders, number_of_features_per_level
 
 ###############################################################################
 # Helper Functions
@@ -229,7 +229,7 @@ def define_S(input_nc, output_nc, nsf, norm='batch', init_type='normal', init_ga
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
 
-    net = UnetSegmentor(input_nc, output_nc, nsf, norm_layer=norm_layer, use_dropout=use_dropout)
+    net = UnetSegmentor(input_nc, output_nc)
 
     return init_net(net, init_type, init_gain, gpu_ids)
 
@@ -481,10 +481,11 @@ class UnetGenerator(nn.Module):
         """
         super(UnetGenerator, self).__init__()
         # construct unet structure
-        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)  # add the innermost layer
+        start_mult = 8
+        unet_block = UnetSkipConnectionBlock(ngf * start_mult, ngf * start_mult, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)  # add the innermost layer
         # gradually reduce the number of filters from ngf * 8 to ngf
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf * int(start_mult/2), ngf * start_mult, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf * int(start_mult/4), ngf * int(start_mult/2), input_nc=None, submodule=unet_block, norm_layer=norm_layer)
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
         self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
 
@@ -492,28 +493,145 @@ class UnetGenerator(nn.Module):
         """Standard forward"""
         return self.model(input)
 
-class UnetSegmentor(nn.Module):
+
+class Abstract3DUNet(nn.Module):
+    """
+    Base class for standard and residual UNet.
+    Args:
+        in_channels (int): number of input channels
+        out_channels (int): number of output segmentation masks;
+            Note that that the of out_channels might correspond to either
+            different semantic classes or to different binary segmentation mask.
+            It's up to the user of the class to interpret the out_channels and
+            use the proper loss criterion during training (i.e. CrossEntropyLoss (multi-class)
+            or BCEWithLogitsLoss (two-class) respectively)
+        f_maps (int, tuple): number of feature maps at each level of the encoder; if it's an integer the number
+            of feature maps is given by the geometric progression: f_maps ^ k, k=1,2,3,4
+        final_sigmoid (bool): if True apply element-wise nn.Sigmoid after the
+            final 1x1 convolution, otherwise apply nn.Softmax. MUST be True if nn.BCELoss (two-class) is used
+            to train the model. MUST be False if nn.CrossEntropyLoss (multi-class) is used to train the model.
+        basic_module: basic model for the encoder/decoder (DoubleConv, ExtResNetBlock, ....)
+        layer_order (string): determines the order of layers
+            in `SingleConv` module. e.g. 'crg' stands for Conv3d+ReLU+GroupNorm3d.
+            See `SingleConv` for more info
+        num_groups (int): number of groups for the GroupNorm
+        num_levels (int): number of levels in the encoder/decoder path (applied only if f_maps is an int)
+        is_segmentation (bool): if True (semantic segmentation problem) Sigmoid/Softmax normalization is applied
+            after the final convolution; if False (regression problem) the normalization layer is skipped at the end
+        testing (bool): if True (testing mode) the `final_activation` (if present, i.e. `is_segmentation=true`)
+            will be applied as the last operation during the forward pass; if False the model is in training mode
+            and the `final_activation` (even if present) won't be applied; default: False
+        conv_kernel_size (int or tuple): size of the convolving kernel in the basic_module
+        pool_kernel_size (int or tuple): the size of the window
+        conv_padding (int or tuple): add zero-padding added to all three sides of the input
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=4, is_segmentation=True, testing=False,
+                 conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
+        super(Abstract3DUNet, self).__init__()
+
+        self.testing = testing
+
+        if isinstance(f_maps, int):
+            f_maps = number_of_features_per_level(f_maps, num_levels=num_levels)
+
+        assert isinstance(f_maps, list) or isinstance(f_maps, tuple)
+        assert len(f_maps) > 1, "Required at least 2 levels in the U-Net"
+
+        # create encoder path
+        self.encoders = create_encoders(in_channels, f_maps, basic_module, conv_kernel_size, conv_padding, layer_order,
+                                        num_groups, pool_kernel_size)
+
+        # create decoder path
+        self.decoders = create_decoders(f_maps, basic_module, conv_kernel_size, conv_padding, layer_order, num_groups,
+                                        upsample=True)
+
+        # in the last layer a 1×1 convolution reduces the number of output
+        # channels to the number of labels
+        self.final_conv = nn.Conv3d(f_maps[0], out_channels, 1)
+
+        if is_segmentation:
+            # semantic segmentation problem
+            if final_sigmoid:
+                self.final_activation = nn.Sigmoid()
+            else:
+                self.final_activation = nn.Softmax(dim=1)
+        else:
+            # regression problem
+            self.final_activation = None
+
+    def forward(self, x):
+        # encoder part
+        encoders_features = []
+        for encoder in self.encoders:
+            x = encoder(x)
+            # reverse the encoder outputs to be aligned with the decoder
+            encoders_features.insert(0, x)
+
+        # remove the last encoder's output from the list
+        # !!remember: it's the 1st in the list
+        encoders_features = encoders_features[1:]
+
+        # decoder part
+        for decoder, encoder_features in zip(self.decoders, encoders_features):
+            # pass the output from the corresponding encoder and the output
+            # of the previous decoder
+            x = decoder(encoder_features, x)
+
+        x = self.final_conv(x)
+
+        # apply final_activation (i.e. Sigmoid or Softmax) only during prediction. During training the network outputs
+        # logits and it's up to the user to normalize it before visualising with tensorboard or computing validation metric
+        if self.testing and self.final_activation is not None:
+            x = self.final_activation(x)
+
+        return x
+
+
+class UnetSegmentor(Abstract3DUNet):
+    """
+    3DUnet model from
+    `"3D U-Net: Learning Dense Volumetric Segmentation from Sparse Annotation"
+        <https://arxiv.org/pdf/1606.06650.pdf>`.
+    Uses `DoubleConv` as a basic_module and nearest neighbor upsampling in the decoder
+    """
+
+    def __init__(self, in_channels, out_channels, final_sigmoid=True, f_maps=64, layer_order='gcr',
+                 num_groups=8, num_levels=4, is_segmentation=True, conv_padding=1, **kwargs):
+        super(UnetSegmentor, self).__init__(in_channels=in_channels,
+                                     out_channels=out_channels,
+                                     final_sigmoid=final_sigmoid,
+                                     basic_module=DoubleConv,
+                                     f_maps=f_maps,
+                                     layer_order=layer_order,
+                                     num_groups=num_groups,
+                                     num_levels=num_levels,
+                                     is_segmentation=is_segmentation,
+                                     conv_padding=conv_padding,
+                                     **kwargs)
+
+class UnetSegmentor_old(nn.Module):
     """Create a Unet-based segmentor"""
 
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm3d, use_dropout=False):
+    def __init__(self, input_nc, output_nc, ngf=1700, norm_layer=nn.BatchNorm3d, use_dropout=False):
         """Construct a Unet segmentor
         Parameters:
             input_nc (int)  -- the number of channels in input images
             output_nc (int) -- the number of channels in output images
-            num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
-                                image of size 128x128 will become of size 1x1 # at the bottleneck
             ngf (int)       -- the number of filters in the last conv layer
             norm_layer      -- normalization layer
 
         We construct the U-Net from the innermost layer to the outermost layer.
         It is a recursive process.
         """
-        super(UnetSegmentor, self).__init__()
+        super(UnetSegmentor_old, self).__init__()
         # construct unet structure
-        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=None, innermost=True, net_type="Segmentor")  # add the innermost layer
+        start_mult = 8
+        unet_block = UnetSkipConnectionBlock(ngf * start_mult, ngf * start_mult, input_nc=None, submodule=None, norm_layer=None, innermost=True, net_type="Segmentor")  # add the innermost layer
         # gradually reduce the number of filters from ngf * 8 to ngf
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, net_type="Segmentor")
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=None, net_type="Segmentor")
+        unet_block = UnetSkipConnectionBlock(ngf * int(start_mult/2), ngf * start_mult, input_nc=None, submodule=unet_block, norm_layer=norm_layer, net_type="Segmentor")
+        unet_block = UnetSkipConnectionBlock(ngf * int(start_mult/4), ngf * int(start_mult/2), input_nc=None, submodule=unet_block, norm_layer=None, net_type="Segmentor")
         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=None, net_type="Segmentor")
         self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=None, net_type="Segmentor")  # add the outermost layer
 

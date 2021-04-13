@@ -147,7 +147,7 @@ class Visualizer():
                 try:
                     for label, image in visuals.items():
                         image_numpy = util.tensor2im(image)
-                        self.vis.image(image_numpy.transpose([2, 0, 1]), opts=dict(title=label),
+                        self.vis.image(image_numpy.transpose([3, 0, 1, 2]), opts=dict(title=label),
                                        win=self.display_id + idx)
                         idx += 1
                 except VisdomExceptionBase:
