@@ -222,11 +222,11 @@ class CycleGANModel(BaseModel):
 
     def get_segmentation_by_max(self):
         self.seg_A = self.seg_A.argmax(dim=1, keepdim=True)
-        self.seg_B = self.seg_A.argmax(dim=1, keepdim=True)
-        self.seg_fake_A = self.seg_A.argmax(dim=1, keepdim=True)
-        self.seg_fake_B = self.seg_A.argmax(dim=1, keepdim=True)
-        self.seg_rec_A = self.seg_A.argmax(dim=1, keepdim=True)
-        self.seg_rec_B = self.seg_A.argmax(dim=1, keepdim=True)
+        self.seg_B = self.seg_B.argmax(dim=1, keepdim=True)
+        self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
+        self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
+        self.seg_rec_A = self.seg_rec_A.argmax(dim=1, keepdim=True)
+        self.seg_rec_B = self.seg_rec_B.argmax(dim=1, keepdim=True)
         
 
     def optimize_parameters(self):
