@@ -9,6 +9,7 @@ import nibabel as nib
 import torch.nn.functional as nnf
 import torch
 import matplotlib.pyplot as plt
+import torchvision.transforms as transforms
 
 
 def save3Dimage(img3d, img_shape, path):
@@ -79,8 +80,10 @@ class DataLoaderDataset(BaseDataset):
         mrtoct = self.opt.direction == 'mrtoct'
         input_nc = self.opt.output_nc if mrtoct else self.opt.input_nc       # get the number of channels of input image
         output_nc = self.opt.input_nc if mrtoct else self.opt.output_nc      # get the number of channels of output image
-        self.transform_ct = get_transform(self.opt)
-        self.transform_mr = get_transform(self.opt)
+
+
+        # self.transform_ct = get_transform(self.opt)
+        # self.transform_mr = get_transform(self.opt)
         
         # self.ct_subjects = []
         # for (image_path, label_path) in zip(self.ct_paths, self.ct_paths_label):
@@ -122,23 +125,39 @@ class DataLoaderDataset(BaseDataset):
         mr_path = self.mr_paths[index_mr]
         mr_path_label = self.mr_paths_label[index_mr]
 
-        ct_subject = tio.Subject(
-            t1 = tio.ScalarImage(ct_path),
-            label = tio.LabelMap(ct_path_label)
-        )       
+        ct_img = np.load(ct_path)['arr_0']
+        x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
+        y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
+        z = random.randint(0, np.maximum(0, ct_img.shape[3] - self.opt.crop_size_z))
+        ct_img = torch.from_numpy(ct_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+        ct_label = np.load(ct_path_label)['arr_0']
+        ct_label = torch.from_numpy(ct_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+
+        mr_img = np.load(mr_path)['arr_0']
+        x = random.randint(0, np.maximum(0, mr_img.shape[1] - self.opt.crop_size))
+        y = random.randint(0, np.maximum(0, mr_img.shape[2] - self.opt.crop_size))
+        z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
+        mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+        mr_label = np.load(mr_path_label)['arr_0']
+        mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+
+        # ct_subject = tio.Subject(
+        #     t1 = tio.ScalarImage(ct_path),
+        #     label = tio.LabelMap(ct_path_label)
+        # )       
         
-        mr_subject = tio.Subject(
-            t1 = tio.ScalarImage(mr_path),
-            label = tio.LabelMap(mr_path_label)
-        ) 
+        # mr_subject = tio.Subject(
+        #     t1 = tio.ScalarImage(mr_path),
+        #     label = tio.LabelMap(mr_path_label)
+        # ) 
 
 
         # apply image transformation
         # ------------------------------------------------
-        ct_subject_transformed = self.transform_ct(ct_subject)
-        mr_subject_transformed = self.transform_mr(mr_subject)
+        # ct_subject_transformed = self.transform_ct(ct_subject)
+        # mr_subject_transformed = self.transform_mr(mr_subject)
         
-        return {'ct': ct_subject_transformed, 'mr': mr_subject_transformed, 'ct_paths': ct_path, 'mr_paths': mr_path}
+        return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 
 
         # ct = ct_subject_transformed.t1.data

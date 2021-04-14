@@ -12,7 +12,7 @@ import os
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
     '.png', '.PNG', '.ppm', '.PPM', '.bmp', '.BMP',
-    '.tif', '.TIF', '.tiff', '.TIFF', '.nii.gz',
+    '.tif', '.TIF', '.tiff', '.TIFF', '.nii.gz', '.npz',
 ]
 
 
@@ -27,7 +27,7 @@ def make_dataset(dir, max_dataset_size=float("inf")):
     for root, _, fnames in sorted(os.walk(dir)):
         for fname in fnames:
             # print(fname, fname.endswith("nii.gz"))
-            if fname.endswith("nii.gz"):
+            if fname.endswith("npz"):
                 path = os.path.join(root, fname)
                 images.append(path)
     return images[:min(max_dataset_size, len(images))]

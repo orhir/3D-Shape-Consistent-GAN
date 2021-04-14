@@ -53,10 +53,10 @@ class CycleGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'S_A', 'S_B']
+        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'S_A', 'S_B', 'S_AB', 'S_BA', 'S_rec_A', 'S_rec_B']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
-        visual_names_A = ['real_A', 'fake_B', 'rec_A']
-        visual_names_B = ['real_B', 'fake_A', 'rec_B']
+        visual_names_A = ['real_A', 'fake_B', 'rec_A', 'ground_truth_seg_A', 'seg_A', 'seg_fake_B', 'seg_rec_A']
+        visual_names_B = ['real_B', 'fake_A', 'rec_B', 'ground_truth_seg_B', 'seg_B', 'seg_fake_A', 'seg_rec_B']
         if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
             visual_names_A.append('idt_B')
             visual_names_B.append('idt_A')
@@ -117,10 +117,10 @@ class CycleGANModel(BaseModel):
         # When using 1 batch size to hack 2D network:
         # self.real_A = torch.from_numpy(np.rollaxis(input['ct' if AtoB else 'mr'].squeeze(0).numpy(), -1, 0)).to(self.device)
         # self.real_B = torch.from_numpy(np.rollaxis(input['mr' if AtoB else 'ct'].squeeze(0).numpy(), -1, 0)).to(self.device)
-        self.real_A = input['ct' if AtoB else 'mr']["t1"]["data"].to(self.device)
-        self.real_seg_A = input['ct' if AtoB else 'mr']["label"]["data"].to(self.device)
-        self.real_B = input['mr' if AtoB else 'ct']["t1"]["data"].to(self.device)       
-        self.real_seg_B = input['mr' if AtoB else 'ct']["label"]["data"].to(self.device)       
+        self.real_A = input['ct' if AtoB else 'mr'].to(self.device)
+        self.ground_truth_seg_A = input['ct_label' if AtoB else 'mr_label'].to(self.device)
+        self.real_B = input['mr' if AtoB else 'ct'].to(self.device)       
+        self.ground_truth_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device)       
         self.image_paths = input['ct_paths' if AtoB else 'mr_paths']
 
     def forward(self):
@@ -203,20 +203,29 @@ class CycleGANModel(BaseModel):
         """Calculate the loss for segmentors S_A and S_B"""
         # lambda_A = self.opt.lambda_A
         # lambda_B = self.opt.lambda_B
-        # self.loss_S_A = self.criterionCycle(self.seg_A, self.real_seg_A) * lambda_A
-        # self.loss_S_B = self.criterionCycle(self.seg_B, self.real_seg_B) * lambda_B
-        # self.loss_S_AB = self.criterionCycle(self.seg_fake_A, self.real_seg_B) * lambda_A
-        # self.loss_S_BA = self.criterionCycle(self.seg_fake_B, self.real_seg_A) * lambda_B
+        # self.loss_S_A = self.criterionCycle(self.seg_A, self.ground_truth_seg_A) * lambda_A
+        # self.loss_S_B = self.criterionCycle(self.seg_B, self.ground_truth_seg_B) * lambda_B
+        # self.loss_S_AB = self.criterionCycle(self.seg_fake_A, self.ground_truth_seg_B) * lambda_A
+        # self.loss_S_BA = self.criterionCycle(self.seg_fake_B, self.ground_truth_seg_A) * lambda_B
         loss = torch.nn.CrossEntropyLoss()
-        self.loss_S_A = loss(self.seg_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.real_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_B = loss(self.seg_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.real_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
-        # self.loss_S_AB = loss(torch.cat((self.seg_fake_A.flatten(), 851), 0), self.real_seg_B.flatten().long())
-        # self.loss_S_BA = loss(torch.cat((self.seg_fake_B.flatten(), 851), 0), self.real_seg_A.flatten().long())
+        self.loss_S_A = loss(self.seg_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_B = loss(self.seg_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_AB = loss(self.seg_fake_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_BA = loss(self.seg_fake_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_rec_A = loss(self.seg_rec_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_rec_B = loss(self.seg_rec_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
         # combined loss and calculate gradients
-        self.loss_S = self.loss_S_A + self.loss_S_B # + self.loss_S_AB + self.loss_S_BA
+        self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_AB + self.loss_S_BA + self.loss_S_rec_A + self.loss_S_rec_B
         self.loss_S.backward()
 
-
+    def get_segmentation_by_max(self):
+        self.seg_A = self.seg_A.argmax(dim=1, keepdim=True)
+        self.seg_B = self.seg_A.argmax(dim=1, keepdim=True)
+        self.seg_fake_A = self.seg_A.argmax(dim=1, keepdim=True)
+        self.seg_fake_B = self.seg_A.argmax(dim=1, keepdim=True)
+        self.seg_rec_A = self.seg_A.argmax(dim=1, keepdim=True)
+        self.seg_rec_B = self.seg_A.argmax(dim=1, keepdim=True)
+        
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
@@ -241,4 +250,5 @@ class CycleGANModel(BaseModel):
         self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
         self.backward_S()             # calculate gradients for S_A and S_B
         self.optimizer_S.step()       # update S_A and S_B's weights
+        self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,851,H,W,D)
 
