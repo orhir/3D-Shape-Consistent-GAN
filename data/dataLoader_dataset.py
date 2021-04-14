@@ -125,6 +125,8 @@ class DataLoaderDataset(BaseDataset):
         mr_path = self.mr_paths[index_mr]
         mr_path_label = self.mr_paths_label[index_mr]
 
+        labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+
         ct_img = np.load(ct_path)['arr_0']
         x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
         y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
@@ -140,6 +142,14 @@ class DataLoaderDataset(BaseDataset):
         mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
         mr_label = np.load(mr_path_label)['arr_0']
         mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+
+        #change labels to 1-8
+        for i in range(len(labels_translate)):
+            # FIX 421 to 420 - dataset bug
+            mr_label[mr_label == 421] = 420
+            # End of FIX
+            ct_label[ct_label == labels_translate[i]] = i
+            mr_label[mr_label == labels_translate[i]] = i
 
         # ct_subject = tio.Subject(
         #     t1 = tio.ScalarImage(ct_path),

@@ -208,14 +208,16 @@ class CycleGANModel(BaseModel):
         # self.loss_S_AB = self.criterionCycle(self.seg_fake_A, self.ground_truth_seg_B) * lambda_A
         # self.loss_S_BA = self.criterionCycle(self.seg_fake_B, self.ground_truth_seg_A) * lambda_B
         loss = torch.nn.CrossEntropyLoss()
-        self.loss_S_A = loss(self.seg_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_B = loss(self.seg_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_AB = loss(self.seg_fake_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_BA = loss(self.seg_fake_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_rec_A = loss(self.seg_rec_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_rec_B = loss(self.seg_rec_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,851), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+
+        self.loss_S_A = loss(self.seg_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_B = loss(self.seg_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_AB = loss(self.seg_fake_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_BA = loss(self.seg_fake_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_rec_A = loss(self.seg_rec_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_rec_B = loss(self.seg_rec_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
         # combined loss and calculate gradients
         self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_AB + self.loss_S_BA + self.loss_S_rec_A + self.loss_S_rec_B
+
         self.loss_S.backward()
 
     def get_segmentation_by_max(self):
@@ -250,5 +252,18 @@ class CycleGANModel(BaseModel):
         self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
         self.backward_S()             # calculate gradients for S_A and S_B
         self.optimizer_S.step()       # update S_A and S_B's weights
-        self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,851,H,W,D)
+        self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,8,H,W,D)
+
+        labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+
+        # change labels back to original values
+        for i in range(len(labels_translate)):
+            self.ground_truth_seg_A[self.ground_truth_seg_A == i] = labels_translate[i]
+            self.ground_truth_seg_B[self.ground_truth_seg_B == i] = labels_translate[i]
+            self.seg_A[self.seg_A == i] = labels_translate[i]
+            self.seg_B[self.seg_B == i] = labels_translate[i]
+            self.seg_fake_A[self.seg_fake_A == i] = labels_translate[i]
+            self.seg_fake_B[self.seg_fake_B == i] = labels_translate[i]
+            self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
+            self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
 
