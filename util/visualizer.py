@@ -33,6 +33,11 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
     ims, txts, links = [], [], []
 
     for label, im_data in visuals.items():
+        if "seg" in label:
+            labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+            # change labels back to original values
+            for i in range(len(labels_translate)):
+                im_data[im_data == i] = labels_translate[i]
         im = util.tensor2im(im_data)
         image_name = '%s_%s.png' % (name, label)
         save_path = os.path.join(image_dir, image_name)
@@ -119,6 +124,11 @@ class Visualizer():
                 images = []
                 idx = 0
                 for label, image in visuals.items():
+                    if "seg" in label:
+                        labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+                        # change labels back to original values
+                        for i in range(len(labels_translate)):
+                            image[image == i] = labels_translate[i]
                     image_numpy = util.tensor2im(image)
                     image_numpy = image_numpy[round(image_numpy.shape[0]/2), :, :]
                     label_html_row += '<td>%s</td>' % label

@@ -462,31 +462,59 @@ class ResnetBlock(nn.Module):
         out = x + self.conv_block(x)  # add skip connections
         return out
 
-
 class UnetGenerator(nn.Module):
     """Create a Unet-based generator"""
 
-    def __init__(self, input_nc, output_nc, num_downs, ngf=64,
-                 norm_layer=nn.BatchNorm3d, use_dropout=False, gpu_ids=[]): # TODO
+    def __init__(self, input_nc, output_nc, num_downs, ngf=64, norm_layer=nn.BatchNorm3d, use_dropout=False):
+        """Construct a Unet generator
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            output_nc (int) -- the number of channels in output images
+            num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
+                                image of size 128x128 will become of size 1x1 # at the bottleneck
+            ngf (int)       -- the number of filters in the last conv layer
+            norm_layer      -- normalization layer
+        We construct the U-Net from the innermost layer to the outermost layer.
+        It is a recursive process.
+        """
         super(UnetGenerator, self).__init__()
-        self.gpu_ids = gpu_ids
-
-        # currently support only input_nc == output_nc
-        assert(input_nc == output_nc)
-
         # construct unet structure
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, innermost=True) 
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, unet_block, norm_layer=norm_layer) 
-        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, unet_block, norm_layer=norm_layer) 
-        unet_block = UnetSkipConnectionBlock(output_nc, ngf, unet_block, outermost=True, norm_layer=norm_layer)
-
-        self.model = unet_block
+        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)  # add the innermost layer
+        # gradually reduce the number of filters from ngf * 8 to ngf
+        # unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
 
     def forward(self, input):
-        if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
-        else:
-            return self.model(input)
+        """Standard forward"""
+        return self.model(input)
+
+# class UnetGenerator(nn.Module):
+#     """Create a Unet-based generator"""
+
+#     def __init__(self, input_nc, output_nc, num_downs, ngf=64,
+#                  norm_layer=nn.BatchNorm3d, use_dropout=False, gpu_ids=[]): # TODO
+#         super(UnetGenerator, self).__init__()
+#         self.gpu_ids = gpu_ids
+
+#         # currently support only input_nc == output_nc
+#         assert(input_nc == output_nc)
+
+#         # construct unet structure
+#         unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, innermost=True) 
+#         unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, unet_block, norm_layer=norm_layer) 
+#         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, unet_block, norm_layer=norm_layer) 
+#         unet_block = UnetSkipConnectionBlock(output_nc, ngf, unet_block, outermost=True, norm_layer=norm_layer)
+
+#         self.model = unet_block
+
+#     def forward(self, input):
+#         if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
+#             return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+#         else:
+#             return self.model(input)
 
 
 class Abstract3DUNet(nn.Module):
@@ -634,48 +662,96 @@ class UnetSegmentor(Abstract3DUNet):
 #         """Standard forward"""
 #         return self.model(input)
 
-
-# Defines the submodule with skip connection.
-# X -------------------identity---------------------- X
-#   |-- downsampling -- |submodule| -- upsampling --|
 class UnetSkipConnectionBlock(nn.Module):
-    def __init__(self, outer_nc, inner_nc,
-                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm3d, use_dropout=False):
+    """Defines the Unet submodule with skip connection.
+        X -------------------identity----------------------
+        |-- downsampling -- |submodule| -- upsampling --|
+    """
+
+    def __init__(self, outer_nc, inner_nc, input_nc=None,
+                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm3d, use_dropout=False, net_type="Generator"):
+        """Construct a Unet submodule with skip connections.
+        Parameters:
+            outer_nc (int) -- the number of filters in the outer conv layer
+            inner_nc (int) -- the number of filters in the inner conv layer
+            input_nc (int) -- the number of channels in input images/features
+            submodule (UnetSkipConnectionBlock) -- previously defined submodules
+            outermost (bool)    -- if this module is the outermost module
+            innermost (bool)    -- if this module is the innermost module
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers.
+        """
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm3d
+        elif norm_layer is None:
+            use_bias = False
         else:
             use_bias = norm_layer == nn.InstanceNorm3d
-
-        downconv = nn.Conv3d(outer_nc, inner_nc, kernel_size=4,
-                             stride=2, padding=1, bias=use_bias)
-        downrelu = nn.LeakyReLU(0.2, True)
-        downnorm = norm_layer(inner_nc)
-        uprelu = nn.ReLU(True)
-        upnorm = norm_layer(outer_nc)
+        if input_nc is None:
+            input_nc = outer_nc
+            
+        if net_type == "Generator":
+            downconv = nn.Conv3d(input_nc, inner_nc, kernel_size=3,
+                                stride=2, padding=1, bias=use_bias)
+            downrelu = nn.LeakyReLU(0.2)
+            downnorm = norm_layer(inner_nc)
+            uprelu = nn.ReLU()
+            upnorm = norm_layer(outer_nc)
+        elif net_type == "Segmentor":
+            downconv = nn.Conv3d(input_nc, inner_nc, kernel_size=3,
+                    stride=1, padding=1, bias=use_bias)
+            downconv2 = nn.Conv3d(inner_nc, inner_nc, kernel_size=3,
+                    stride=1, padding=1, bias=use_bias)
+            maxpool = nn.MaxPool3d(kernel_size=3,stride=2, padding=1)
+            downrelu = nn.LeakyReLU(0.2)
+            uprelu = nn.ReLU()
 
         if outermost:
-            upconv = nn.ConvTranspose3d(inner_nc * 2, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1)
-            down = [downconv]
-            up = [uprelu, upconv, nn.Tanh()]
+            upsample = nn.Upsample(scale_factor = 2, mode='nearest')
+            upconv = nn.Conv3d(inner_nc * 2, outer_nc,
+                                kernel_size=3, stride=1,
+                                padding=1)
+            upconv2 = nn.Conv3d(outer_nc, outer_nc,
+                                kernel_size=3, stride=1,
+                                padding=1)
+            if net_type == "Generator":
+                down = [downconv]
+                up = [uprelu, upsample, upconv, nn.Tanh()]
+            elif net_type == "Segmentor":
+                down = [maxpool, downconv, downconv2]
+                up = [uprelu, upsample, upconv, upconv2, nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
-            upconv = nn.ConvTranspose3d(inner_nc, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
-            down = [downrelu, downconv]
-            up = [uprelu, upconv, upnorm]
+            upsample = nn.Upsample(scale_factor = 2, mode='nearest')
+            upconv = nn.Conv3d(inner_nc, outer_nc,
+                                kernel_size=3, stride=1,
+                                padding=1, bias=use_bias)
+            upconv2 = nn.Conv3d(outer_nc, outer_nc,
+                                kernel_size=3, stride=1,
+                                padding=1, bias=use_bias)
+            if net_type == "Generator":
+                down = [downrelu, downconv]
+                up = [uprelu, upsample, upconv, upnorm]
+            elif net_type == "Segmentor":
+                down = [downrelu, maxpool, downconv, downconv2]
+                up = [uprelu, upsample, upconv, upconv2]
             model = down + up
         else:
-            upconv = nn.ConvTranspose3d(inner_nc * 2, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
-            down = [downrelu, downconv, downnorm]
-            up = [uprelu, upconv, upnorm]
-
+            upsample = nn.Upsample(scale_factor = 2, mode='nearest')
+            upconv = nn.Conv3d(inner_nc * 2, outer_nc,
+                                kernel_size=3, stride=1,
+                                padding=1, bias=use_bias)
+            upconv2 = nn.Conv3d(outer_nc, outer_nc,
+                                kernel_size=3, stride=1,
+                                padding=1, bias=use_bias)
+            if net_type == "Generator":
+                down = [downrelu, downconv, downnorm]
+                up = [uprelu, upsample, upconv, upnorm]
+            elif net_type == "Segmentor":
+                down = [downrelu, maxpool, downconv, downconv2]
+                up = [uprelu, upsample, upconv, upconv2]
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
             else:
@@ -686,8 +762,62 @@ class UnetSkipConnectionBlock(nn.Module):
     def forward(self, x):
         if self.outermost:
             return self.model(x)
-        else:
-            return torch.cat([self.model(x), x], 1)
+        else:   # add skip connections     
+            return torch.cat([x, self.model(x)], 1)
+
+# Defines the submodule with skip connection.
+# X -------------------identity---------------------- X
+#   |-- downsampling -- |submodule| -- upsampling --|
+# class UnetSkipConnectionBlock(nn.Module):
+#     def __init__(self, outer_nc, inner_nc,
+#                  submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm3d, use_dropout=False):
+#         super(UnetSkipConnectionBlock, self).__init__()
+#         self.outermost = outermost
+#         if type(norm_layer) == functools.partial:
+#             use_bias = norm_layer.func == nn.InstanceNorm3d
+#         else:
+#             use_bias = norm_layer == nn.InstanceNorm3d
+
+#         downconv = nn.Conv3d(outer_nc, inner_nc, kernel_size=4,
+#                              stride=2, padding=1, bias=use_bias)
+#         downrelu = nn.LeakyReLU(0.2, True)
+#         downnorm = norm_layer(inner_nc)
+#         uprelu = nn.ReLU(True)
+#         upnorm = norm_layer(outer_nc)
+
+#         if outermost:
+#             upconv = nn.ConvTranspose3d(inner_nc * 2, outer_nc,
+#                                         kernel_size=4, stride=2,
+#                                         padding=1)
+#             down = [downconv]
+#             up = [uprelu, upconv, nn.Tanh()]
+#             model = down + [submodule] + up
+#         elif innermost:
+#             upconv = nn.ConvTranspose3d(inner_nc, outer_nc,
+#                                         kernel_size=4, stride=2,
+#                                         padding=1, bias=use_bias)
+#             down = [downrelu, downconv]
+#             up = [uprelu, upconv, upnorm]
+#             model = down + up
+#         else:
+#             upconv = nn.ConvTranspose3d(inner_nc * 2, outer_nc,
+#                                         kernel_size=4, stride=2,
+#                                         padding=1, bias=use_bias)
+#             down = [downrelu, downconv, downnorm]
+#             up = [uprelu, upconv, upnorm]
+
+#             if use_dropout:
+#                 model = down + [submodule] + up + [nn.Dropout(0.5)]
+#             else:
+#                 model = down + [submodule] + up
+
+#         self.model = nn.Sequential(*model)
+
+#     def forward(self, x):
+#         if self.outermost:
+#             return self.model(x)
+#         else:
+#             return torch.cat([self.model(x), x], 1)
 
 
 class NLayerDiscriminator(nn.Module):

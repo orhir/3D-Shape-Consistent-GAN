@@ -53,13 +53,14 @@ class CycleGANModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'S_A', 'S_B', 'S_AB', 'S_BA', 'S_rec_A', 'S_rec_B']
+        self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'S_A', 'S_B', 'GS_A', 'GS_B']
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
-        visual_names_A = ['real_A', 'fake_B', 'rec_A', 'ground_truth_seg_A', 'seg_A', 'seg_fake_B', 'seg_rec_A']
-        visual_names_B = ['real_B', 'fake_A', 'rec_B', 'ground_truth_seg_B', 'seg_B', 'seg_fake_A', 'seg_rec_B']
+        visual_names_A = ['real_A', 'fake_B', 'rec_A', 'ground_truth_seg_A', 'seg_A']
+        visual_names_B = ['real_B', 'fake_A', 'rec_B', 'ground_truth_seg_B', 'seg_B']
         if self.isTrain and self.opt.lambda_identity > 0.0:  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
             visual_names_A.append('idt_B')
             visual_names_B.append('idt_A')
+        self.labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
 
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
@@ -130,10 +131,10 @@ class CycleGANModel(BaseModel):
         self.fake_A = self.netG_B(self.real_B)      # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)       # G_A(G_B(B))
         # TODO: Add real segmentation of real A\B???
-        self.seg_fake_B = self.netS_B(self.fake_B.detach())  # S{G_A(A), Y_A}
-        self.seg_rec_A = self.netS_A(self.rec_A.detach())    # S{G_B(G_A(A)), Y_A}
-        self.seg_fake_A = self.netS_A(self.fake_A.detach())  # S{G_B(B), Y_B}
-        self.seg_rec_B = self.netS_B(self.rec_B.detach())    # S{G_A(G_B(B)), Y_A}
+        # self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
+        # self.seg_rec_A = self.netS_A(self.rec_A)    # S{G_B(G_A(A)), Y_A}
+        # self.seg_fake_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
+        # self.seg_rec_B = self.netS_B(self.rec_B)    # S{G_A(G_B(B)), Y_A}
         self.seg_A = self.netS_A(self.real_A)
         self.seg_B = self.netS_B(self.real_B)
 
@@ -195,38 +196,40 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+        #Segmentation loss:
+        self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A), self.ground_truth_seg_B) * lambda_A
+        self.loss_GS_B = self.seg_loss(self.netS_A(self.fake_B), self.ground_truth_seg_A) * lambda_B
         # combined loss and calculate gradients
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B +self.loss_GS_A +self.loss_GS_B
         self.loss_G.backward()
+
+    def seg_loss(self, seg, truth):
+        loss = torch.nn.CrossEntropyLoss()
+        return loss(seg.permute(0, 2, 3, 4, 1).contiguous().view(-1,len(self.labels_translate)), truth.view(-1,1).squeeze().contiguous().view(-1).long())
 
     def backward_S(self):
         """Calculate the loss for segmentors S_A and S_B"""
         # lambda_A = self.opt.lambda_A
         # lambda_B = self.opt.lambda_B
-        # self.loss_S_A = self.criterionCycle(self.seg_A, self.ground_truth_seg_A) * lambda_A
-        # self.loss_S_B = self.criterionCycle(self.seg_B, self.ground_truth_seg_B) * lambda_B
-        # self.loss_S_AB = self.criterionCycle(self.seg_fake_A, self.ground_truth_seg_B) * lambda_A
-        # self.loss_S_BA = self.criterionCycle(self.seg_fake_B, self.ground_truth_seg_A) * lambda_B
-        loss = torch.nn.CrossEntropyLoss()
-
-        self.loss_S_A = loss(self.seg_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_B = loss(self.seg_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_AB = loss(self.seg_fake_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_BA = loss(self.seg_fake_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_rec_A = loss(self.seg_rec_A.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_A.view(-1,1).squeeze().contiguous().view(-1).long())
-        self.loss_S_rec_B = loss(self.seg_rec_B.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), self.ground_truth_seg_B.view(-1,1).squeeze().contiguous().view(-1).long())
+        self.loss_S_A = self.seg_loss(self.seg_A, self.ground_truth_seg_A)
+        self.loss_S_B = self.seg_loss(self.seg_B, self.ground_truth_seg_B)
+        # self.loss_S_AB = self.seg_loss(self.seg_fake_A, self.ground_truth_seg_B)
+        # self.loss_S_BA = self.seg_loss(self.seg_fake_B, self.ground_truth_seg_A)
+        # self.loss_S_rec_A = self.seg_loss(self.seg_rec_A, self.ground_truth_seg_A)
+        # self.loss_S_rec_B = self.seg_loss(self.seg_rec_B, self.ground_truth_seg_B)
+        # self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_AB + self.loss_S_BA + self.loss_S_rec_A + self.loss_S_rec_B
+        self.loss_S = self.loss_S_A + self.loss_S_B
         # combined loss and calculate gradients
-        self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_AB + self.loss_S_BA + self.loss_S_rec_A + self.loss_S_rec_B
-
         self.loss_S.backward()
+
 
     def get_segmentation_by_max(self):
         self.seg_A = self.seg_A.argmax(dim=1, keepdim=True)
         self.seg_B = self.seg_B.argmax(dim=1, keepdim=True)
-        self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
-        self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
-        self.seg_rec_A = self.seg_rec_A.argmax(dim=1, keepdim=True)
-        self.seg_rec_B = self.seg_rec_B.argmax(dim=1, keepdim=True)
+        # self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
+        # self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
+        # self.seg_rec_A = self.seg_rec_A.argmax(dim=1, keepdim=True)
+        # self.seg_rec_B = self.seg_rec_B.argmax(dim=1, keepdim=True)
         
 
     def optimize_parameters(self):
@@ -254,16 +257,16 @@ class CycleGANModel(BaseModel):
         self.optimizer_S.step()       # update S_A and S_B's weights
         self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,8,H,W,D)
 
-        labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+        # labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
 
         # change labels back to original values
-        for i in range(len(labels_translate)):
-            self.ground_truth_seg_A[self.ground_truth_seg_A == i] = labels_translate[i]
-            self.ground_truth_seg_B[self.ground_truth_seg_B == i] = labels_translate[i]
-            self.seg_A[self.seg_A == i] = labels_translate[i]
-            self.seg_B[self.seg_B == i] = labels_translate[i]
-            self.seg_fake_A[self.seg_fake_A == i] = labels_translate[i]
-            self.seg_fake_B[self.seg_fake_B == i] = labels_translate[i]
-            self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
-            self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
+        # for i in range(len(labels_translate)):
+            # self.ground_truth_seg_A[self.ground_truth_seg_A == i] = labels_translate[i]
+            # self.ground_truth_seg_B[self.ground_truth_seg_B == i] = labels_translate[i]
+            # self.seg_A[self.seg_A == i] = labels_translate[i]
+            # self.seg_B[self.seg_B == i] = labels_translate[i]
+            # self.seg_fake_A[self.seg_fake_A == i] = labels_translate[i]
+            # self.seg_fake_B[self.seg_fake_B == i] = labels_translate[i]
+            # self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
+            # self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
 
