@@ -197,8 +197,8 @@ class CycleGANModel(BaseModel):
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         #Segmentation loss:
-        self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A), self.ground_truth_seg_B) * lambda_A
-        self.loss_GS_B = self.seg_loss(self.netS_A(self.fake_B), self.ground_truth_seg_A) * lambda_B
+        self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A), self.ground_truth_seg_B)
+        self.loss_GS_B = self.seg_loss(self.netS_B(self.fake_B), self.ground_truth_seg_A)
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B +self.loss_GS_A +self.loss_GS_B
         self.loss_G.backward()
