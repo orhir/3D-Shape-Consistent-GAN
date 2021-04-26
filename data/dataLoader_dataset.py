@@ -127,21 +127,28 @@ class DataLoaderDataset(BaseDataset):
 
         labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
 
+        ct_label = np.load(ct_path_label)['arr_0']
         ct_img = np.load(ct_path)['arr_0']
+        ct_box = tuple( slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(ct_label>0))
+        ct_img = ct_img[ct_box]
+        ct_label = ct_label[ct_box]
         x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
         y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
         z = random.randint(0, np.maximum(0, ct_img.shape[3] - self.opt.crop_size_z))
         ct_img = torch.from_numpy(ct_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
-        ct_label = np.load(ct_path_label)['arr_0']
         ct_label = torch.from_numpy(ct_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
 
+        mr_label = np.load(mr_path_label)['arr_0']
         mr_img = np.load(mr_path)['arr_0']
+        mr_box = tuple( slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(mr_label>0))
+        mr_img = mr_img[mr_box]
+        mr_label = mr_label[mr_box]
         x = random.randint(0, np.maximum(0, mr_img.shape[1] - self.opt.crop_size))
         y = random.randint(0, np.maximum(0, mr_img.shape[2] - self.opt.crop_size))
         z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
         mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
-        mr_label = np.load(mr_path_label)['arr_0']
         mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+
 
         #change labels to 1-8
         for i in range(len(labels_translate)):
@@ -151,21 +158,6 @@ class DataLoaderDataset(BaseDataset):
             ct_label[ct_label == labels_translate[i]] = i
             mr_label[mr_label == labels_translate[i]] = i
 
-        # ct_subject = tio.Subject(
-        #     t1 = tio.ScalarImage(ct_path),
-        #     label = tio.LabelMap(ct_path_label)
-        # )       
-        
-        # mr_subject = tio.Subject(
-        #     t1 = tio.ScalarImage(mr_path),
-        #     label = tio.LabelMap(mr_path_label)
-        # ) 
-
-
-        # apply image transformation
-        # ------------------------------------------------
-        # ct_subject_transformed = self.transform_ct(ct_subject)
-        # mr_subject_transformed = self.transform_mr(mr_subject)
         
         return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 

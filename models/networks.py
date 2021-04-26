@@ -634,33 +634,6 @@ class UnetSegmentor(Abstract3DUNet):
                                      conv_padding=conv_padding,
                                      **kwargs)
 
-# class UnetSegmentor_old(nn.Module):
-#     """Create a Unet-based segmentor"""
-
-#     def __init__(self, input_nc, output_nc, ngf=1700, norm_layer=nn.BatchNorm3d, use_dropout=False):
-#         """Construct a Unet segmentor
-#         Parameters:
-#             input_nc (int)  -- the number of channels in input images
-#             output_nc (int) -- the number of channels in output images
-#             ngf (int)       -- the number of filters in the last conv layer
-#             norm_layer      -- normalization layer
-
-#         We construct the U-Net from the innermost layer to the outermost layer.
-#         It is a recursive process.
-#         """
-#         super(UnetSegmentor_old, self).__init__()
-#         # construct unet structure
-#         start_mult = 8
-#         unet_block = UnetSkipConnectionBlock(ngf * start_mult, ngf * start_mult, input_nc=None, submodule=None, norm_layer=None, innermost=True, net_type="Segmentor")  # add the innermost layer
-#         # gradually reduce the number of filters from ngf * 8 to ngf
-#         unet_block = UnetSkipConnectionBlock(ngf * int(start_mult/2), ngf * start_mult, input_nc=None, submodule=unet_block, norm_layer=norm_layer, net_type="Segmentor")
-#         unet_block = UnetSkipConnectionBlock(ngf * int(start_mult/4), ngf * int(start_mult/2), input_nc=None, submodule=unet_block, norm_layer=None, net_type="Segmentor")
-#         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=None, net_type="Segmentor")
-#         self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=None, net_type="Segmentor")  # add the outermost layer
-
-#     def forward(self, input):
-#         """Standard forward"""
-#         return self.model(input)
 
 class UnetSkipConnectionBlock(nn.Module):
     """Defines the Unet submodule with skip connection.
@@ -692,21 +665,12 @@ class UnetSkipConnectionBlock(nn.Module):
         if input_nc is None:
             input_nc = outer_nc
             
-        if net_type == "Generator":
-            downconv = nn.Conv3d(input_nc, inner_nc, kernel_size=3,
-                                stride=2, padding=1, bias=use_bias)
-            downrelu = nn.LeakyReLU(0.2)
-            downnorm = norm_layer(inner_nc)
-            uprelu = nn.ReLU()
-            upnorm = norm_layer(outer_nc)
-        elif net_type == "Segmentor":
-            downconv = nn.Conv3d(input_nc, inner_nc, kernel_size=3,
-                    stride=1, padding=1, bias=use_bias)
-            downconv2 = nn.Conv3d(inner_nc, inner_nc, kernel_size=3,
-                    stride=1, padding=1, bias=use_bias)
-            maxpool = nn.MaxPool3d(kernel_size=3,stride=2, padding=1)
-            downrelu = nn.LeakyReLU(0.2)
-            uprelu = nn.ReLU()
+        downconv = nn.Conv3d(input_nc, inner_nc, kernel_size=3,
+                            stride=2, padding=1, bias=use_bias)
+        downrelu = nn.LeakyReLU(0.2)
+        downnorm = norm_layer(inner_nc)
+        uprelu = nn.ReLU()
+        upnorm = norm_layer(outer_nc)
 
         if outermost:
             upsample = nn.Upsample(scale_factor = 2, mode='nearest')
@@ -716,12 +680,8 @@ class UnetSkipConnectionBlock(nn.Module):
             upconv2 = nn.Conv3d(outer_nc, outer_nc,
                                 kernel_size=3, stride=1,
                                 padding=1)
-            if net_type == "Generator":
-                down = [downconv]
-                up = [uprelu, upsample, upconv, nn.Tanh()]
-            elif net_type == "Segmentor":
-                down = [maxpool, downconv, downconv2]
-                up = [uprelu, upsample, upconv, upconv2, nn.Tanh()]
+            down = [downconv]
+            up = [uprelu, upsample, upconv, nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
             upsample = nn.Upsample(scale_factor = 2, mode='nearest')
@@ -731,12 +691,8 @@ class UnetSkipConnectionBlock(nn.Module):
             upconv2 = nn.Conv3d(outer_nc, outer_nc,
                                 kernel_size=3, stride=1,
                                 padding=1, bias=use_bias)
-            if net_type == "Generator":
-                down = [downrelu, downconv]
-                up = [uprelu, upsample, upconv, upnorm]
-            elif net_type == "Segmentor":
-                down = [downrelu, maxpool, downconv, downconv2]
-                up = [uprelu, upsample, upconv, upconv2]
+            down = [downrelu, downconv]
+            up = [uprelu, upsample, upconv, upnorm]
             model = down + up
         else:
             upsample = nn.Upsample(scale_factor = 2, mode='nearest')
@@ -746,12 +702,8 @@ class UnetSkipConnectionBlock(nn.Module):
             upconv2 = nn.Conv3d(outer_nc, outer_nc,
                                 kernel_size=3, stride=1,
                                 padding=1, bias=use_bias)
-            if net_type == "Generator":
-                down = [downrelu, downconv, downnorm]
-                up = [uprelu, upsample, upconv, upnorm]
-            elif net_type == "Segmentor":
-                down = [downrelu, maxpool, downconv, downconv2]
-                up = [uprelu, upsample, upconv, upconv2]
+            down = [downrelu, downconv, downnorm]
+            up = [uprelu, upsample, upconv, upnorm]
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
             else:
