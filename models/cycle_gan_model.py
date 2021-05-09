@@ -118,10 +118,10 @@ class CycleGANModel(BaseModel):
         # When using 1 batch size to hack 2D network:
         # self.real_A = torch.from_numpy(np.rollaxis(input['ct' if AtoB else 'mr'].squeeze(0).numpy(), -1, 0)).to(self.device)
         # self.real_B = torch.from_numpy(np.rollaxis(input['mr' if AtoB else 'ct'].squeeze(0).numpy(), -1, 0)).to(self.device)
-        self.real_A = input['ct' if AtoB else 'mr'].to(self.device)
-        self.ground_truth_seg_A = input['ct_label' if AtoB else 'mr_label'].to(self.device)
-        self.real_B = input['mr' if AtoB else 'ct'].to(self.device)       
-        self.ground_truth_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device)       
+        self.real_A = input['ct' if AtoB else 'mr'].to(self.device, dtype=torch.float)
+        self.ground_truth_seg_A = input['ct_label' if AtoB else 'mr_label'].to(self.device, dtype=torch.float)
+        self.real_B = input['mr' if AtoB else 'ct'].to(self.device, dtype=torch.float)       
+        self.ground_truth_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device, dtype=torch.float)       
         self.image_paths = input['ct_paths' if AtoB else 'mr_paths']
 
     def forward(self):

@@ -65,8 +65,8 @@ class DataLoaderDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
         self.dir_ct = os.path.join(opt.dataroot, opt.phase + 'ct')  # create a path '/path/to/data/ct'
         self.dir_mr = os.path.join(opt.dataroot, opt.phase + 'mr')  # create a path '/path/to/data/mr'
-        self.dir_ct_label = os.path.join(opt.dataroot, 'trainct_lables')  # create a path '/path/to/data/ct'
-        self.dir_mr_label = os.path.join(opt.dataroot, 'trainmr_lables')  # create a path '/path/to/data/mr'
+        self.dir_ct_label = os.path.join(opt.dataroot, 'trainct_labels')  # create a path '/path/to/data/ct'
+        self.dir_mr_label = os.path.join(opt.dataroot, 'trainmr_labels')  # create a path '/path/to/data/mr'
 
         self.ct_paths = sorted(make_dataset(self.dir_ct, opt.max_dataset_size))   # load images from '/path/to/data/ct'
         self.mr_paths = sorted(make_dataset(self.dir_mr, opt.max_dataset_size))    # load images from '/path/to/data/mr'
@@ -129,7 +129,19 @@ class DataLoaderDataset(BaseDataset):
 
         ct_label = np.load(ct_path_label)['arr_0']
         ct_img = np.load(ct_path)['arr_0']
-        ct_box = tuple( slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(ct_label>0))
+        ct_box = [slice(np.min(indexes), \
+                np.max(indexes) + 1) for indexes in np.where(ct_label>0)]
+        for i in range(1, 3):
+                if (ct_box[i].stop - ct_box[i].start) < self.opt.crop_size:
+                        ct_box[i] = slice(ct_box[i].start, ct_box[i].start + self.opt.crop_size)
+        if (ct_box[3].stop - ct_box[3].start) < self.opt.crop_size_z:
+                ct_box[3] = slice(ct_box[3].start, ct_box[i].start + self.opt.crop_size_z)
+        # for i in range(1, 3):
+        #         if (ct_box[i].stop > ct_img.shape[i]):
+        #                 ct_box[i] = slice(ct_img.shape[i] - self.opt.crop_size, ct_img.shape[i])
+        # if (ct_box[3].stop > ct_img.shape[3]):
+        #         ct_box[3] = slice(ct_img.shape[3] - self.opt.crop_size_z, ct_img.shape[3])
+        ct_box = tuple(ct_box)
         ct_img = ct_img[ct_box]
         ct_label = ct_label[ct_box]
         x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
@@ -140,7 +152,19 @@ class DataLoaderDataset(BaseDataset):
 
         mr_label = np.load(mr_path_label)['arr_0']
         mr_img = np.load(mr_path)['arr_0']
-        mr_box = tuple( slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(mr_label>0))
+        mr_box = [slice(np.min(indexes), \
+                np.max(indexes) + 1) for indexes in np.where(mr_label>0)]
+        for i in range(1, 3):
+                if (mr_box[i].stop - mr_box[i].start) < self.opt.crop_size:
+                        mr_box[i] = slice(mr_box[i].start, mr_box[i].start + self.opt.crop_size)
+        if (mr_box[3].stop - mr_box[3].start) < self.opt.crop_size_z:
+                mr_box[3] = slice(mr_box[3].start, mr_box[i].start + self.opt.crop_size_z)
+        # for i in range(1, 3):
+        #         if (mr_box[i].stop > mr_img.shape[i]):
+        #                 mr_box[i] = slice(mr_img.shape[i] - self.opt.crop_size, mr_img.shape[i])
+        # if (mr_box[3].stop > mr_img.shape[3]):
+        #         mr_box[3] = slice(mr_img.shape[3] - self.opt.crop_size_z, mr_img.shape[3])
+        mr_box = tuple(mr_box)
         mr_img = mr_img[mr_box]
         mr_label = mr_label[mr_box]
         x = random.randint(0, np.maximum(0, mr_img.shape[1] - self.opt.crop_size))
