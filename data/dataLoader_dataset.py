@@ -65,8 +65,8 @@ class DataLoaderDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
         self.dir_ct = os.path.join(opt.dataroot, opt.phase + 'ct')  # create a path '/path/to/data/ct'
         self.dir_mr = os.path.join(opt.dataroot, opt.phase + 'mr')  # create a path '/path/to/data/mr'
-        self.dir_ct_label = os.path.join(opt.dataroot, 'trainct_labels')  # create a path '/path/to/data/ct'
-        self.dir_mr_label = os.path.join(opt.dataroot, 'trainmr_labels')  # create a path '/path/to/data/mr'
+        self.dir_ct_label = os.path.join(opt.dataroot, opt.phase + 'ct_labels')  # create a path '/path/to/data/ct'
+        self.dir_mr_label = os.path.join(opt.dataroot, opt.phase + 'mr_labels')  # create a path '/path/to/data/mr'
 
         self.ct_paths = sorted(make_dataset(self.dir_ct, opt.max_dataset_size))   # load images from '/path/to/data/ct'
         self.mr_paths = sorted(make_dataset(self.dir_mr, opt.max_dataset_size))    # load images from '/path/to/data/mr'
@@ -182,7 +182,10 @@ class DataLoaderDataset(BaseDataset):
             ct_label[ct_label == labels_translate[i]] = i
             mr_label[mr_label == labels_translate[i]] = i
 
-        
+        # print("ct before", np.load(ct_path)['arr_0'].shape, "ct after", ct_img.shape)
+        # print(mr_path, "mr before", np.load(mr_path)['arr_0'].shape, "mr after", mr_img.shape)
+        # print(mr_path_label, "mr label before", np.load(mr_path_label)['arr_0'].shape, "mr label after", mr_label.shape)
+
         return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 
 

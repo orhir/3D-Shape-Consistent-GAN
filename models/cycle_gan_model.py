@@ -124,6 +124,7 @@ class CycleGANModel(BaseModel):
         self.ground_truth_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device, dtype=torch.float)       
         self.image_paths = input['ct_paths' if AtoB else 'mr_paths']
 
+
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         self.fake_B = self.netG_A(self.real_A)      # G_A(A)
