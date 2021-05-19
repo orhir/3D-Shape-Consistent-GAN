@@ -32,7 +32,8 @@ from data import create_dataset
 from models import create_model
 from util.visualizer import save_images
 from util import html
-
+import sklearn
+import numpy
 
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
@@ -56,6 +57,9 @@ if __name__ == '__main__':
     # For [CycleGAN]: It should not affect CycleGAN as CycleGAN uses instancenorm without dropout.
     if opt.eval:
         model.eval()
+
+    scores = {}
+
     for i, data in enumerate(dataset):
         print('This is image numero %s' % i)
         if i >= opt.num_test:  # only apply our model to opt.num_test images.
@@ -64,7 +68,25 @@ if __name__ == '__main__':
         model.test()           # run inference
         visuals = model.get_current_visuals()  # get image results
         img_path = model.get_image_paths()     # get image paths
+        # Calculate metrics
+        for dir in ["A", "B"]:
+            metric = sklearn.metrics.f1_score(visuals["ground_truth_seg_" + dir], visuals["seg_" + dir])
+            if dir in scores:
+                scores[dir] = numpy.concatenate(scores[dir], numpy.array([metric]))
+            else:
+                scores[dir] = numpy.array([metric])
         if i % 1 == 0:  # save images to an HTML file
             print('processing (%04d)-th image... %s' % (i, img_path))
         save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
     webpage.save()  # save the HTML
+    print("-"*50)
+    print("-"*20 + "Detaild scores:" + "-"*20)
+    print("-"*50)
+    print("CT Segmentation F1 Scores: {}".format(scores["A"]))
+    print("MRI Segmentation F1 Scores: {}".format(scores["B"]))
+    print("-"*50)
+    print("-"*20+ "Total scores:" + "-"*20)
+    print("-"*50)
+    print("CT Segmentation F1 Score: {}".format(numpy.mean(scores["A"])))
+    print("MRI Segmentation F1 Score: {}".format(numpy.mean(scores["B"])))
+
