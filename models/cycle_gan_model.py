@@ -137,9 +137,9 @@ class CycleGANModel(BaseModel):
         self.rec_A = self.netG_B(self.fake_B)       # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)      # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)       # G_A(G_B(B))
-        self.seg_syn_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
+        self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
         # self.seg_rec_A = self.netS_A(self.rec_A)    # S{G_B(G_A(A)), Y_A}
-        self.seg_syn_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
+        self.seg_fake_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
         # self.seg_rec_B = self.netS_B(self.rec_B)    # S{G_A(G_B(B)), Y_A}
         self.seg_A = self.netS_A(self.real_A)
         self.seg_B = self.netS_B(self.real_B)
@@ -225,13 +225,13 @@ class CycleGANModel(BaseModel):
         self.loss_S_B = self.seg_loss(self.seg_B, self.ground_truth_seg_B)
         # Syntheric loss
         if lambda_seg_from_syn > 0:
-            self.S_SYN_A = self.seg_loss(self.seg_syn_A, self.ground_truth_seg_B) * lambda_seg_from_syn
-            self.S_SYN_B = self.seg_loss(self.seg_syn_B, self.ground_truth_seg_A) * lambda_seg_from_syn
+            self.loss_S_SYN_A = self.seg_loss(self.netS_A(self.netG_B(self.real_B)), self.ground_truth_seg_B) * lambda_seg_from_syn
+            self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_B(self.real_B)), self.ground_truth_seg_A) * lambda_seg_from_syn
         else:
-            self.S_SYN_A = 0
-            self.S_SYN_B = 0
+            self.loss_S_SYN_A = 0
+            self.loss_S_SYN_B = 0
 
-        self.loss_S = self.loss_S_A + self.loss_S_B + self.S_SYN_A + self.S_SYN_B
+        self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_SYN_A + self.loss_S_SYN_B
         # combined loss and calculate gradients
         self.loss_S.backward()
 
@@ -240,7 +240,9 @@ class CycleGANModel(BaseModel):
         self.seg_A = self.seg_A.argmax(dim=1, keepdim=True)
         self.seg_B = self.seg_B.argmax(dim=1, keepdim=True)
 
-        
+        self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
+        self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
+
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
