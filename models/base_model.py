@@ -199,9 +199,9 @@ class BaseModel(ABC):
                     del state_dict._metadata
 
                 # patch InstanceNorm checkpoints prior to 0.4
-                if name in ["S_A", "S_B"]:
-                    for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
-                      self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
+                # if name in ["S_A", "S_B"]:
+                    # for key in list(state_dict.keys()):  # need to copy keys here because we mutate in loop
+                    #   self.__patch_instance_norm_state_dict(state_dict, net, key.split('.'))
                 net.load_state_dict(state_dict, strict=False)
 
 

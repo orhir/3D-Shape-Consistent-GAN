@@ -68,7 +68,7 @@ class CycleGANModel(BaseModel):
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
             self.model_names = ['G_A', 'G_B', 'D_A', 'D_B', 'S_A', 'S_B']
-        else:  # during test time, only load Gs
+        else:  # during test time, only load Gs and Ss
             self.model_names = ['G_A', 'G_B', 'S_A', 'S_B']
 
         # define networks (both Generators and discriminators)
@@ -133,7 +133,6 @@ class CycleGANModel(BaseModel):
         self.rec_A = self.netG_B(self.fake_B)       # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)      # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)       # G_A(G_B(B))
-        # TODO: Add real segmentation of real A\B???
         # self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
         # self.seg_rec_A = self.netS_A(self.rec_A)    # S{G_B(G_A(A)), Y_A}
         # self.seg_fake_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
@@ -214,15 +213,11 @@ class CycleGANModel(BaseModel):
 
     def backward_S(self):
         """Calculate the loss for segmentors S_A and S_B"""
-        # lambda_A = self.opt.lambda_A
-        # lambda_B = self.opt.lambda_B
         self.loss_S_A = self.seg_loss(self.seg_A, self.ground_truth_seg_A)
         self.loss_S_B = self.seg_loss(self.seg_B, self.ground_truth_seg_B)
         # self.loss_S_AB = self.seg_loss(self.seg_fake_A, self.ground_truth_seg_B)
         # self.loss_S_BA = self.seg_loss(self.seg_fake_B, self.ground_truth_seg_A)
-        # self.loss_S_rec_A = self.seg_loss(self.seg_rec_A, self.ground_truth_seg_A)
-        # self.loss_S_rec_B = self.seg_loss(self.seg_rec_B, self.ground_truth_seg_B)
-        # self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_AB + self.loss_S_BA + self.loss_S_rec_A + self.loss_S_rec_B
+
         self.loss_S = self.loss_S_A + self.loss_S_B
         # combined loss and calculate gradients
         self.loss_S.backward()
@@ -233,8 +228,7 @@ class CycleGANModel(BaseModel):
         self.seg_B = self.seg_B.argmax(dim=1, keepdim=True)
         # self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
         # self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
-        # self.seg_rec_A = self.seg_rec_A.argmax(dim=1, keepdim=True)
-        # self.seg_rec_B = self.seg_rec_B.argmax(dim=1, keepdim=True)
+
         
 
     def optimize_parameters(self):
@@ -261,17 +255,4 @@ class CycleGANModel(BaseModel):
         self.backward_S()             # calculate gradients for S_A and S_B
         self.optimizer_S.step()       # update S_A and S_B's weights
         self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,8,H,W,D)
-
-        # labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
-
-        # change labels back to original values
-        # for i in range(len(labels_translate)):
-            # self.ground_truth_seg_A[self.ground_truth_seg_A == i] = labels_translate[i]
-            # self.ground_truth_seg_B[self.ground_truth_seg_B == i] = labels_translate[i]
-            # self.seg_A[self.seg_A == i] = labels_translate[i]
-            # self.seg_B[self.seg_B == i] = labels_translate[i]
-            # self.seg_fake_A[self.seg_fake_A == i] = labels_translate[i]
-            # self.seg_fake_B[self.seg_fake_B == i] = labels_translate[i]
-            # self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
-            # self.seg_rec_A[self.seg_rec_A == i] = labels_translate[i]
 

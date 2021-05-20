@@ -31,9 +31,10 @@ from options.test_options import TestOptions
 from data import create_dataset
 from models import create_model
 from util.visualizer import save_images
-from util import html
-import sklearn
+from util import util, html
+import sklearn.metrics
 import numpy
+
 
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
@@ -59,25 +60,33 @@ if __name__ == '__main__':
         model.eval()
 
     scores = {}
+    labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
 
     for i, data in enumerate(dataset):
-        print('This is image numero %s' % i)
         if i >= opt.num_test:  # only apply our model to opt.num_test images.
             break
         model.set_input(data)  # unpack data from data loader
         model.test()           # run inference
         visuals = model.get_current_visuals()  # get image results
         img_path = model.get_image_paths()     # get image paths
+        
+        if i % 1 == 0:  # save images to an HTML file
+            print('processing (%04d)-th image... %s' % (i, img_path))
+            save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
+
         # Calculate metrics
         for dir in ["A", "B"]:
-            metric = sklearn.metrics.f1_score(visuals["ground_truth_seg_" + dir], visuals["seg_" + dir])
+            seg = util.tensor2im(visuals["seg_" + dir].cpu())
+            truth = util.tensor2im(visuals["ground_truth_seg_" + dir].cpu())
+            # change labels back to original values
+            for i in range(len(labels_translate)):
+                seg[seg == i] = labels_translate[i]
+            metric = sklearn.metrics.f1_score(truth, seg)
             if dir in scores:
                 scores[dir] = numpy.concatenate(scores[dir], numpy.array([metric]))
             else:
                 scores[dir] = numpy.array([metric])
-        if i % 1 == 0:  # save images to an HTML file
-            print('processing (%04d)-th image... %s' % (i, img_path))
-        save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
+
     webpage.save()  # save the HTML
     print("-"*50)
     print("-"*20 + "Detaild scores:" + "-"*20)
