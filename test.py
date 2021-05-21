@@ -76,26 +76,28 @@ if __name__ == '__main__':
 
         # Calculate metrics
         for dir in ["A", "B"]:
-            seg = util.tensor2im(visuals["seg_" + dir].cpu())
-            truth = util.tensor2im(visuals["ground_truth_seg_" + dir].cpu())
+            seg = util.tensor2im(visuals["seg_" + dir])
+            truth = util.tensor2im(visuals["ground_truth_seg_" + dir])
             # change labels back to original values
             for i in range(len(labels_translate)):
                 seg[seg == i] = labels_translate[i]
-            metric = sklearn.metrics.f1_score(truth, seg)
+            metric = sklearn.metrics.f1_score(truth.flatten(), seg.flatten(), average='micro')
             if dir in scores:
-                scores[dir] = numpy.concatenate(scores[dir], numpy.array([metric]))
+                scores[dir] = numpy.concatenate((scores[dir], numpy.array([metric])))
             else:
                 scores[dir] = numpy.array([metric])
 
     webpage.save()  # save the HTML
-    print("-"*50)
-    print("-"*20 + "Detaild scores:" + "-"*20)
-    print("-"*50)
-    print("CT Segmentation F1 Scores: {}".format(scores["A"]))
-    print("MRI Segmentation F1 Scores: {}".format(scores["B"]))
-    print("-"*50)
-    print("-"*20+ "Total scores:" + "-"*20)
-    print("-"*50)
-    print("CT Segmentation F1 Score: {}".format(numpy.mean(scores["A"])))
-    print("MRI Segmentation F1 Score: {}".format(numpy.mean(scores["B"])))
+    # print results
+    print("\n\n|{}|".format("-"*100))
+    print("|" + "-"*42 + "Detaild scores: " + "-"*42 + "|")
+    print("|{}|".format("-"*100))
+    print("|{}CT  Segmentation F1 Scores: {}{}|".format(" "*13, str(scores["A"]), " "*14))
+    print("|{}MRI Segmentation F1 Scores: {}{}|".format(" "*13, str(scores["B"]), " "*14))
+    print("|{}|".format("-"*100))
+    print("|" + "-"*43+ "Total scores: " + "-"*43 + "|")
+    print("|{}|".format("-"*100))
+    print("|{}CT  Segmentation F1 Score: {}{}|".format(" "*30,numpy.mean(scores["A"]), " "*25))
+    print("|{}MRI Segmentation F1 Score: {}{}|".format(" "*30,numpy.mean(scores["B"]), " "*25))
+    print("|{}|".format("-"*100))
 

@@ -109,6 +109,7 @@ class BaseModel(ABC):
         with torch.no_grad():
             self.forward()
             self.compute_visuals()
+            self.get_segmentation_by_max()
 
     def compute_visuals(self):
         """Calculate additional output images for visdom and HTML visualization"""

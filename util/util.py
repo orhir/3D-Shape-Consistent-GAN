@@ -49,21 +49,16 @@ def diagnose_network(net, name='network'):
 def save3Dimage_numpy(img3d, path):
 
         img_shape = img3d.shape
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+        ax1.imshow(img3d[:, :, 0], cmap="gray")
+        ax1.title.set_text("Z=0")
+        ax2.imshow(img3d[:, :, img_shape[2]//2], cmap="gray")
+        ax2.title.set_text("Z=middle")
+        ax3.imshow(img3d[:, :, img_shape[2]-1], cmap="gray")
+        ax3.title.set_text("Z=end")
 
-        plt.subplot(2, 2, 1)
-        plt.imshow(img3d[:, :, img_shape[2]//2], cmap="gray")
-        # a1.set_aspect(ax_aspect)
-
-        plt.subplot(2, 2, 2)
-        plt.imshow(img3d[:, img_shape[1]//2, :], cmap="gray")
-        # a2.set_aspect(sag_aspect)
-
-        plt.subplot(2, 2, 3)
-        plt.imshow(img3d[img_shape[0]//2, :, :], cmap="gray")
-        # a3.set_aspect(cor_aspect)
-
-        # print(path)
         plt.savefig(path)
+        plt.close('all')
 
 def save_image(image_numpy, image_path, aspect_ratio=1.0):
     """Save a numpy image to the disk
