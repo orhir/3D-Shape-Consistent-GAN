@@ -226,7 +226,7 @@ class CycleGANModel(BaseModel):
         # Syntheric loss
         if lambda_seg_from_syn > 0:
             self.loss_S_SYN_A = self.seg_loss(self.netS_A(self.netG_B(self.real_B)), self.ground_truth_seg_B) * lambda_seg_from_syn
-            self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_B(self.real_B)), self.ground_truth_seg_A) * lambda_seg_from_syn
+            self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_A(self.real_A) ), self.ground_truth_seg_A) * lambda_seg_from_syn
         else:
             self.loss_S_SYN_A = 0
             self.loss_S_SYN_B = 0
