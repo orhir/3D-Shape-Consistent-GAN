@@ -80,26 +80,10 @@ class DataLoaderDataset(BaseDataset):
         mrtoct = self.opt.direction == 'mrtoct'
         input_nc = self.opt.output_nc if mrtoct else self.opt.input_nc       # get the number of channels of input image
         output_nc = self.opt.input_nc if mrtoct else self.opt.output_nc      # get the number of channels of output image
-
-
-        # self.transform_ct = get_transform(self.opt)
-        # self.transform_mr = get_transform(self.opt)
         
-        # self.ct_subjects = []
-        # for (image_path, label_path) in zip(self.ct_paths, self.ct_paths_label):
-        #     subject = tio.Subject(
-        #         t1=tio.ScalarImage(image_path),
-        #         label=tio.LabelMap(label_path),
-        #     )
-        #     self.ct_subjects.append(subject)
-        
-        # self.mr_subjects = []
-        # for (image_path, label_path) in zip(self.mr_paths, self.mr_paths_label):
-        #     subject = tio.Subject(
-        #         t1=tio.ScalarImage(image_path),
-        #         label=tio.LabelMap(label_path),
-        #     )
-        #     self.mr_subjects.append(subject)
+        self.transform_ct = get_transform(self.opt)
+        self.transform_mr = get_transform(self.opt)
+
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -114,9 +98,7 @@ class DataLoaderDataset(BaseDataset):
 
         ct_path = self.ct_paths[index % self.ct_size]  # make sure index is within then range
         ct_path_label = self.ct_paths_label[index % self.ct_size]  # make sure index is within then range
-        #FIX FOR TEST
-        # ct_path = self.ct_paths[1]  # make sure index is within then range
-        # ct_path_label = self.ct_paths_label[1]  # make sure index is within then range
+
         if self.opt.serial_batches:   # make sure index is within then range
             index_mr = index % self.mr_size
         else:   # randomize the index for domain B to avoid fixed pairs.
@@ -129,72 +111,66 @@ class DataLoaderDataset(BaseDataset):
 
         ct_label = np.load(ct_path_label)['arr_0']
         ct_img = np.load(ct_path)['arr_0']
-        ct_box = [slice(np.min(indexes), \
-                np.max(indexes) + 1) for indexes in np.where(ct_label>0)]
-        for i in range(1, 3):
-                if (ct_box[i].stop - ct_box[i].start) < self.opt.crop_size:
-                        ct_box[i] = slice(ct_box[i].start, ct_box[i].start + self.opt.crop_size)
-        if (ct_box[3].stop - ct_box[3].start) < self.opt.crop_size_z:
-                ct_box[3] = slice(ct_box[3].start, ct_box[i].start + self.opt.crop_size_z)
-        # for i in range(1, 3):
-        #         if (ct_box[i].stop > ct_img.shape[i]):
-        #                 ct_box[i] = slice(ct_img.shape[i] - self.opt.crop_size, ct_img.shape[i])
-        # if (ct_box[3].stop > ct_img.shape[3]):
-        #         ct_box[3] = slice(ct_img.shape[3] - self.opt.crop_size_z, ct_img.shape[3])
-        ct_box = tuple(ct_box)
-        ct_img = ct_img[ct_box]
-        ct_label = ct_label[ct_box]
-        x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
-        y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
-        z = random.randint(0, np.maximum(0, ct_img.shape[3] - self.opt.crop_size_z))
-        ct_img = torch.from_numpy(ct_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
-        ct_label = torch.from_numpy(ct_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
-
         mr_label = np.load(mr_path_label)['arr_0']
         mr_img = np.load(mr_path)['arr_0']
-        mr_box = [slice(np.min(indexes), \
-                np.max(indexes) + 1) for indexes in np.where(mr_label>0)]
-        for i in range(1, 3):
-                if (mr_box[i].stop - mr_box[i].start) < self.opt.crop_size:
-                        mr_box[i] = slice(mr_box[i].start, mr_box[i].start + self.opt.crop_size)
-        if (mr_box[3].stop - mr_box[3].start) < self.opt.crop_size_z:
-                mr_box[3] = slice(mr_box[3].start, mr_box[i].start + self.opt.crop_size_z)
-        # for i in range(1, 3):
-        #         if (mr_box[i].stop > mr_img.shape[i]):
-        #                 mr_box[i] = slice(mr_img.shape[i] - self.opt.crop_size, mr_img.shape[i])
-        # if (mr_box[3].stop > mr_img.shape[3]):
-        #         mr_box[3] = slice(mr_img.shape[3] - self.opt.crop_size_z, mr_img.shape[3])
-        mr_box = tuple(mr_box)
-        mr_img = mr_img[mr_box]
-        mr_label = mr_label[mr_box]
-        x = random.randint(0, np.maximum(0, mr_img.shape[1] - self.opt.crop_size))
-        y = random.randint(0, np.maximum(0, mr_img.shape[2] - self.opt.crop_size))
-        z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
-        mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
-        mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
 
+        ct_labels_translate = np.unique(ct_label)
+        mr_labels_translate = np.unique(mr_label)
+
+        if self.opt.preprocess != "none":
+
+            ct_box = [slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(ct_label>0)]
+            for i in range(1, 3):
+                if (ct_box[i].stop - ct_box[i].start) < self.opt.crop_size:
+                    ct_box[i] = slice(ct_box[i].start, ct_box[i].start + self.opt.crop_size)
+            if (ct_box[3].stop - ct_box[3].start) < self.opt.crop_size_z:
+                ct_box[3] = slice(ct_box[3].start, ct_box[i].start + self.opt.crop_size_z)
+
+            ct_box = tuple(ct_box)
+            ct_img = ct_img[ct_box]
+            ct_label = ct_label[ct_box]
+
+            x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
+            y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
+            z = random.randint(0, np.maximum(0, ct_img.shape[3] - self.opt.crop_size_z))
+            ct_img = torch.from_numpy(ct_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+            ct_label = torch.from_numpy(ct_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+
+
+            mr_box = [slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(mr_label>0)]
+            for i in range(1, 3):
+                if (mr_box[i].stop - mr_box[i].start) < self.opt.crop_size:
+                    mr_box[i] = slice(mr_box[i].start, mr_box[i].start + self.opt.crop_size)
+            if (mr_box[3].stop - mr_box[3].start) < self.opt.crop_size_z:
+                mr_box[3] = slice(mr_box[3].start, mr_box[i].start + self.opt.crop_size_z)
+
+            mr_box = tuple(mr_box)
+            mr_img = mr_img[mr_box]
+            mr_label = mr_label[mr_box]
+
+            x = random.randint(0, np.maximum(0, mr_img.shape[1] - self.opt.crop_size))
+            y = random.randint(0, np.maximum(0, mr_img.shape[2] - self.opt.crop_size))
+            z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
+            mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+            mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+        else:
+            ct_img = self.transform_ct(torch.from_numpy(ct_img))
+            ct_label = self.transform_ct(torch.from_numpy(ct_label))
+            mr_img = self.transform_mr(torch.from_numpy(mr_img))
+            mr_label = self.transform_mr(torch.from_numpy(mr_label))
 
         #change labels to 1-8
-        for i in range(len(labels_translate)):
+        for i in range(len(mr_labels_translate)):
             # FIX 421 to 420 - dataset bug
             mr_label[mr_label == 421] = 420
             # End of FIX
-            ct_label[ct_label == labels_translate[i]] = i
-            mr_label[mr_label == labels_translate[i]] = i
+            mr_label[mr_label == mr_labels_translate[i]] = i
+        for i in range(len(ct_labels_translate)):
+            ct_label[ct_label == ct_labels_translate[i]] = i
 
-        # print("ct before", np.load(ct_path)['arr_0'].shape, "ct after", ct_img.shape)
-        # print(mr_path, "mr before", np.load(mr_path)['arr_0'].shape, "mr after", mr_img.shape)
-        # print(mr_path_label, "mr label before", np.load(mr_path_label)['arr_0'].shape, "mr label after", mr_label.shape)
+        print(ct_img.shape, mr_img.shape, ct_label.shape, mr_label.shape)
 
         return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
-
-
-        # ct = ct_subject_transformed.t1.data
-        # mr = mr_subject_transformed.t1.data
-        # ct_label = ct_subject_transformed.label.data
-        # mr_label = mr_subject_transformed.label.data
-        # ------------------------------------------------
-        # return {'ct': ct, 'mr': mr, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 
     def __len__(self):
         """Return the total number of images in the dataset.

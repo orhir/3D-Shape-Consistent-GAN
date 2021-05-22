@@ -62,51 +62,42 @@ def get_params(opt, size):
     
     x = random.randint(0, np.maximum(0, new_w - opt.crop_size))
     y = random.randint(0, np.maximum(0, new_h - opt.crop_size))
-    #FIX FOR TEST
-    # x = 128
-    # y=128
 
     flip = random.random() > 0.5
 
     return {'crop_pos': (x, y), 'flip': flip}
 
-def get_transform(opt, params=None, convert=True):
+def get_transform(opt, params=None, convert=False, method=Image.BICUBIC):
     transform_list = []
 
+    # if convert:
+        # transform_list += [tio.RescaleIntensity((-1, 1))]
+ 
+    # if 'resize' in opt.preprocess:
+        # osize = (opt.load_size, opt.load_size, opt.load_size_z)
+        # transform_list.append(tio.CropOrPad(osize))
+ 
+    # if 'crop' in opt.preprocess:
+        # transform_list.append(tio.CropOrPad((opt.crop_size, opt.crop_size, opt.crop_size_z)))
+    # return tio.Compose(transform_list)
 
-# 
-    # Augmentations:
-    # transform_list += [tio.RandomAnisotropy()]
-    # max_displacement = 15, 15, 0
-    # spatial_transforms = {
-        # tio.RandomElasticDeformation(max_displacement=5, num_control_points=7, locked_borders=2) : 0.75
-        # ,tio.RandomAffine(scales=(0.9, 1.2), degrees=10, isotropic=True, image_interpolation='nearest'): 0.25
-    # }
-    # transform_list += [tio.OneOf(spatial_transforms)]
-    # transform_list += [tio.RandomElasticDeformation(max_displacement=max_displacement, locked_borders=2)]
-    if convert:
-        transform_list += [tio.RescaleIntensity((-1, 1))]
+    if opt.preprocess == 'none':
+        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=16, method=method)))
 
-    if 'resize' in opt.preprocess:
-        osize = (opt.load_size, opt.load_size, opt.load_size_z)
-        transform_list.append(tio.CropOrPad(osize))
-# 
-    if 'crop' in opt.preprocess:
-        transform_list.append(tio.CropOrPad((opt.crop_size, opt.crop_size, opt.crop_size_z)))
-# 
+    return transforms.Compose(transform_list)
 
-    return tio.Compose(transform_list)
 
-def __make_power_2(img, base, method=Image.BICUBIC):
-    ow, oh = img.size
+def __make_power_2(img, base, method=Image.NEAREST):
+    batch, ow, oh, oz = img.shape
     h = int(round(oh / base) * base)
     w = int(round(ow / base) * base)
-    if h == oh and w == ow:
+    z = int(round(oz / base) * base)
+    if h == oh and w == ow and z == oz:
         return img
-
-    __print_size_warning(ow, oh, w, h)
-    return img.resize((w, h), method)
-
+    __print_size_warning(ow, oh, oz, w, h, z, base)
+    # return img.resize_((batch, w, h, z))
+    f = tio.CropOrPad((w, h, z))
+    return f(img)
 
 def __scale_width(img, target_size, crop_size, method=Image.BICUBIC):
     ow, oh = img.size
@@ -132,11 +123,11 @@ def __flip(img, flip):
     return img
 
 
-def __print_size_warning(ow, oh, w, h):
+def __print_size_warning(ow, oh, oz, w, h, z, base):
     """Print warning information about image size(only print once)"""
     if not hasattr(__print_size_warning, 'has_printed'):
-        print("The image size needs to be a multiple of 4. "
-              "The loaded image size was (%d, %d), so it was adjusted to "
-              "(%d, %d). This adjustment will be done to all images "
-              "whose sizes are not multiples of 4" % (ow, oh, w, h))
+        print("The image size needs to be a multiple of %d. "
+              "The loaded image size was (%d, %d, %d), so it was adjusted to "
+              "(%d, %d, %d). This adjustment will be done to all images "
+              "whose sizes are not multiples of 4" % (base, ow, oh, oz, w, h, z))
         __print_size_warning.has_printed = True
