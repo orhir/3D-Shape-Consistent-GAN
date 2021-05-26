@@ -45,6 +45,7 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_seg_B', type=float, default=0.5, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             parser.add_argument('--lambda_seg_from_syn', type=float, default=0, help='use to teach segmentor from synthetic data')
+            parser.add_argument('--lambda_gen_from_seg', type=float, default=0, help='use to teach generator from segmentation data')
 
         return parser
 
@@ -186,6 +187,7 @@ class CycleGANModel(BaseModel):
         lambda_B = self.opt.lambda_B
         lambda_seg_A = self.opt.lambda_seg_A
         lambda_seg_B = self.opt.lambda_seg_B
+        lambda_seg = self.opt.lambda_gen_from_seg
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -207,8 +209,12 @@ class CycleGANModel(BaseModel):
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
         #Segmentation loss:
-        self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A), self.ground_truth_seg_B) * lambda_seg_A
-        self.loss_GS_B = self.seg_loss(self.netS_B(self.fake_B), self.ground_truth_seg_A) * lambda_seg_B
+        if lambda_seg > 0:
+            self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A), self.ground_truth_seg_B) * lambda_seg_A
+            self.loss_GS_B = self.seg_loss(self.netS_B(self.fake_B), self.ground_truth_seg_A) * lambda_seg_B
+        else:
+            self.loss_GS_A = 0
+            self.loss_GS_B = 0
         # combined loss and calculate gradients
         self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B +self.loss_GS_A +self.loss_GS_B
         self.loss_G.backward()

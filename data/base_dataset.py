@@ -5,6 +5,8 @@ from PIL import Image
 import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
 import torchio as tio
+import math
+from skimage.transform import resize
 
 class BaseDataset(data.Dataset, ABC):
     """This class is an abstract base class (ABC) for datasets.
@@ -70,8 +72,8 @@ def get_params(opt, size):
 def get_transform(opt, params=None, convert=False, method=Image.BICUBIC):
     transform_list = []
 
-    # if convert:
-        # transform_list += [tio.RescaleIntensity((-1, 1))]
+    if convert:
+        transform_list += [tio.RescaleIntensity((-1, 1))]
  
     # if 'resize' in opt.preprocess:
         # osize = (opt.load_size, opt.load_size, opt.load_size_z)
@@ -82,22 +84,22 @@ def get_transform(opt, params=None, convert=False, method=Image.BICUBIC):
     # return tio.Compose(transform_list)
 
     if opt.preprocess == 'none':
-        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=16, method=method)))
+        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=64, method=method)))
 
     return transforms.Compose(transform_list)
 
 
 def __make_power_2(img, base, method=Image.NEAREST):
     batch, ow, oh, oz = img.shape
-    h = int(round(oh / base) * base)
-    w = int(round(ow / base) * base)
-    z = int(round(oz / base) * base)
+    h = int(math.floor(oh / base) * base)
+    w = int(math.floor(ow / base) * base)
+    z = int(math.floor(oz / base) * base)
     if h == oh and w == ow and z == oz:
         return img
     __print_size_warning(ow, oh, oz, w, h, z, base)
-    # return img.resize_((batch, w, h, z))
-    f = tio.CropOrPad((w, h, z))
-    return f(img)
+    # FIXME - support size larger than 128
+    return resize(img, (batch, min(256,w), min(256,h), z), anti_aliasing=True)
+    # return resize(img, (batch, w, h, z), anti_aliasing=True)
 
 def __scale_width(img, target_size, crop_size, method=Image.BICUBIC):
     ow, oh = img.size
@@ -129,5 +131,5 @@ def __print_size_warning(ow, oh, oz, w, h, z, base):
         print("The image size needs to be a multiple of %d. "
               "The loaded image size was (%d, %d, %d), so it was adjusted to "
               "(%d, %d, %d). This adjustment will be done to all images "
-              "whose sizes are not multiples of 4" % (base, ow, oh, oz, w, h, z))
-        __print_size_warning.has_printed = True
+              "whose sizes are not multiples of %d" % (base, ow, oh, oz, w, h, z, base))
+        # __print_size_warning.has_printed = True

@@ -158,17 +158,22 @@ class DataLoaderDataset(BaseDataset):
             ct_label = self.transform_ct(torch.from_numpy(ct_label))
             mr_img = self.transform_mr(torch.from_numpy(mr_img))
             mr_label = self.transform_mr(torch.from_numpy(mr_label))
+            # ct_img = torch.from_numpy(ct_img[:,:,:,:128])
+            # ct_label = torch.from_numpy(ct_label[:,:,:,:128])
+            # mr_img = torch.from_numpy(mr_img[:,:,:,:128])
+            # mr_label = torch.from_numpy(mr_label[:,:,:,:128])
 
         #change labels to 1-8
-        for i in range(len(mr_labels_translate)):
+        for i in range(len(labels_translate)):
+        # for i in range(len(mr_labels_translate)):
             # FIX 421 to 420 - dataset bug
             mr_label[mr_label == 421] = 420
             # End of FIX
-            mr_label[mr_label == mr_labels_translate[i]] = i
-        for i in range(len(ct_labels_translate)):
-            ct_label[ct_label == ct_labels_translate[i]] = i
-
-        print(ct_img.shape, mr_img.shape, ct_label.shape, mr_label.shape)
+            mr_label[mr_label == labels_translate[i]] = i
+            ct_label[ct_label == labels_translate[i]] = i
+            # mr_label[mr_label == mr_labels_translate[i]] = i
+        # for i in range(len(ct_labels_translate)):
+            # ct_label[ct_label == ct_labels_translate[i]] = i
 
         return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 

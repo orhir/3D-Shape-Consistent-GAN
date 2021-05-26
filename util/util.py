@@ -52,10 +52,13 @@ def save3Dimage_numpy(img3d, path):
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
         ax1.imshow(img3d[:, :, 0], cmap="gray")
         ax1.title.set_text("Z=0")
+        ax1.axis('off') 
         ax2.imshow(img3d[:, :, img_shape[2]//2], cmap="gray")
         ax2.title.set_text("Z=middle")
+        ax2.axis('off') 
         ax3.imshow(img3d[:, :, img_shape[2]-1], cmap="gray")
         ax3.title.set_text("Z=end")
+        ax3.axis('off') 
 
         plt.savefig(path)
         plt.close('all')
