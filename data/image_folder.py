@@ -8,6 +8,7 @@ import torch.utils.data as data
 
 from PIL import Image
 import os
+import re
 
 IMG_EXTENSIONS = [
     '.jpg', '.JPG', '.jpeg', '.JPEG',
@@ -30,12 +31,18 @@ def make_dataset(dir, max_dataset_size=float("inf")):
             if fname.endswith("npz"):
                 path = os.path.join(root, fname)
                 images.append(path)
+    images = sorted(images, key=name_key)
     return images[:min(max_dataset_size, len(images))]
+
+
+def name_key(item):
+    key_pat = re.compile(r".*_(\d+)_.*")
+    m = key_pat.match(item)
+    return int(m.group(1))
 
 
 def default_loader(path):
     return Image.open(path).convert('RGB')
-
 
 class ImageFolder(data.Dataset):
 

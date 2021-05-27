@@ -86,10 +86,10 @@ class BaseModel(ABC):
         if self.isTrain:
             self.schedulers = [networks.get_scheduler(optimizer, opt) for optimizer in self.optimizers]
         if not self.isTrain or opt.continue_train:
-            load_suffix = 'iter_%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
+            load_suffix = '%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_networks(load_suffix)
         elif opt.load_seg:
-            load_suffix = 'iter_%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
+            load_suffix = '%d' % opt.load_iter if opt.load_iter > 0 else opt.epoch
             self.load_segmentor(load_suffix)
         self.print_networks(opt.verbose)
 
@@ -127,6 +127,7 @@ class BaseModel(ABC):
                 scheduler.step(self.metric)
             else:
                 scheduler.step()
+                
 
         lr = self.optimizers[0].param_groups[0]['lr']
         print('learning rate %.7f -> %.7f' % (old_lr, lr))

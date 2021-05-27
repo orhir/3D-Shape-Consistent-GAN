@@ -114,8 +114,8 @@ class DataLoaderDataset(BaseDataset):
         mr_label = np.load(mr_path_label)['arr_0']
         mr_img = np.load(mr_path)['arr_0']
 
-        ct_labels_translate = np.unique(ct_label)
-        mr_labels_translate = np.unique(mr_label)
+        # ct_labels_translate = np.unique(ct_label)
+        # mr_labels_translate = np.unique(mr_label)
 
         if self.opt.preprocess != "none":
 
@@ -153,15 +153,13 @@ class DataLoaderDataset(BaseDataset):
             z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
             mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
             mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+
         else:
             ct_img = self.transform_ct(torch.from_numpy(ct_img))
             ct_label = self.transform_ct(torch.from_numpy(ct_label))
             mr_img = self.transform_mr(torch.from_numpy(mr_img))
             mr_label = self.transform_mr(torch.from_numpy(mr_label))
-            # ct_img = torch.from_numpy(ct_img[:,:,:,:128])
-            # ct_label = torch.from_numpy(ct_label[:,:,:,:128])
-            # mr_img = torch.from_numpy(mr_img[:,:,:,:128])
-            # mr_label = torch.from_numpy(mr_label[:,:,:,:128])
+
 
         #change labels to 1-8
         for i in range(len(labels_translate)):
@@ -174,6 +172,8 @@ class DataLoaderDataset(BaseDataset):
             # mr_label[mr_label == mr_labels_translate[i]] = i
         # for i in range(len(ct_labels_translate)):
             # ct_label[ct_label == ct_labels_translate[i]] = i
+        
+        # print(ct_path, ct_img.shape, mr_path, mr_img.shape)
 
         return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
 
