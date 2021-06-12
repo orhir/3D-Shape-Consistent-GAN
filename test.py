@@ -35,6 +35,13 @@ from util import util, html
 import sklearn.metrics
 import numpy
 
+def dice_coef(y_true, y_pred):
+    y_true_f = y_true.flatten()
+    y_pred_f = y_pred.flatten()
+    intersection = numpy.sum(y_true_f==y_pred_f)
+    smooth = 1e-7
+    return (2. * intersection) / (y_true_f.size + y_pred_f.size + smooth)
+
 
 if __name__ == '__main__':
     opt = TestOptions().parse()  # get test options
@@ -69,7 +76,7 @@ if __name__ == '__main__':
         model.test()           # run inference
         visuals = model.get_current_visuals()  # get image results
         img_path = model.get_image_paths()     # get image paths
-        
+
         if i % 1 == 0:  # save images to an HTML file
             print('processing (%04d)-th image... %s' % (i, img_path))
             save_images(webpage, visuals, img_path, aspect_ratio=opt.aspect_ratio, width=opt.display_winsize)
@@ -81,7 +88,8 @@ if __name__ == '__main__':
             # change labels back to original values
             for i in range(len(labels_translate)):
                 seg[seg == i] = labels_translate[i]
-            metric = sklearn.metrics.f1_score(truth.flatten(), seg.flatten(), average='micro')
+            metric = dice_coef(truth, seg)
+            # metric = sklearn.metrics.f1_score(truth.flatten(), seg.flatten(), average='micro')
             if dir in scores:
                 scores[dir] = numpy.concatenate((scores[dir], numpy.array([metric])))
             else:

@@ -226,8 +226,8 @@ def define_S(input_nc, output_nc, nsf, norm='batch', init_type='normal', init_ga
 
     The segmentor has been initialized by <init_net>. It uses Leakly RELU for non-linearity.
     """
-    net = None
-    norm_layer = get_norm_layer(norm_type=norm)
+    # net = None
+    # norm_layer = get_norm_layer(norm_type=norm)
 
     net = UnetSegmentor(input_nc, output_nc)
 
@@ -491,30 +491,6 @@ class UnetGenerator(nn.Module):
         """Standard forward"""
         return self.model(input)
 
-# class UnetGenerator(nn.Module):
-#     """Create a Unet-based generator"""
-
-#     def __init__(self, input_nc, output_nc, num_downs, ngf=64,
-#                  norm_layer=nn.BatchNorm3d, use_dropout=False, gpu_ids=[]): # TODO
-#         super(UnetGenerator, self).__init__()
-#         self.gpu_ids = gpu_ids
-
-#         # currently support only input_nc == output_nc
-#         assert(input_nc == output_nc)
-
-#         # construct unet structure
-#         unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 4, norm_layer=norm_layer, innermost=True) 
-#         unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, unet_block, norm_layer=norm_layer) 
-#         unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, unet_block, norm_layer=norm_layer) 
-#         unet_block = UnetSkipConnectionBlock(output_nc, ngf, unet_block, outermost=True, norm_layer=norm_layer)
-
-#         self.model = unet_block
-
-#     def forward(self, input):
-#         if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
-#             return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
-#         else:
-#             return self.model(input)
 
 
 class Abstract3DUNet(nn.Module):
@@ -583,7 +559,7 @@ class Abstract3DUNet(nn.Module):
         else:
             # regression problem
             self.final_activation = None
-
+    
     def forward(self, x):
         # encoder part
         encoders_features = []
@@ -595,7 +571,6 @@ class Abstract3DUNet(nn.Module):
         # remove the last encoder's output from the list
         # !!remember: it's the 1st in the list
         encoders_features = encoders_features[1:]
-
         # decoder part
         for decoder, encoder_features in zip(self.decoders, encoders_features):
             # pass the output from the corresponding encoder and the output

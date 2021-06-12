@@ -133,6 +133,10 @@ class DataLoaderDataset(BaseDataset):
             x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
             y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
             z = random.randint(0, np.maximum(0, ct_img.shape[3] - self.opt.crop_size_z))
+            # FIXME!!!
+            x = y = z = 0
+
+
             ct_img = torch.from_numpy(ct_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
             ct_label = torch.from_numpy(ct_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
 
@@ -151,6 +155,10 @@ class DataLoaderDataset(BaseDataset):
             x = random.randint(0, np.maximum(0, mr_img.shape[1] - self.opt.crop_size))
             y = random.randint(0, np.maximum(0, mr_img.shape[2] - self.opt.crop_size))
             z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
+            # FIXME!!!
+            x = y = z = 0
+
+            
             mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
             mr_label = torch.from_numpy(mr_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
 

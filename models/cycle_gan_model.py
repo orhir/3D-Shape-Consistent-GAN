@@ -70,8 +70,8 @@ class CycleGANModel(BaseModel):
                 visual_names_B.append('seg_fake_A')
         else:
             self.loss_names = ['S_A', 'S_B']
-            visual_names_A = ['ground_truth_seg_A', 'seg_A']
-            visual_names_B = ['ground_truth_seg_B', 'seg_B']
+            visual_names_A = ['real_A', 'ground_truth_seg_A', 'seg_A']
+            visual_names_B = ['real_B', 'ground_truth_seg_B', 'seg_B']
 
         self.labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
 
