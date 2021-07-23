@@ -31,6 +31,7 @@ def save3Dimage(img3d, img_shape, path):
         plt.savefig(path)
 
 def save3Dimage_numpy(img3d, img_shape, path):
+        img3d = img3d.squeeze()
 
         plt.subplot(2, 2, 1)
         plt.imshow(img3d[:, :, img_shape[2]//2], cmap="gray")
@@ -109,10 +110,22 @@ class DataLoaderDataset(BaseDataset):
 
         labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
 
+
         ct_label = np.load(ct_path_label)['arr_0']
         ct_img = np.load(ct_path)['arr_0']
         mr_label = np.load(mr_path_label)['arr_0']
         mr_img = np.load(mr_path)['arr_0']
+
+        print(ct_label.shape[1:])
+        # save3Dimage_numpy(ct_label,ct_label.shape[1:], "tests/labels.png")
+
+        ct_label_odd = ct_label[:,1::2,1::2,1::2]
+        ct_img_odd = ct_img[:,1::2,1::2,1::2]
+
+        ct_label = ct_label[:,::2,::2,::2]
+        ct_img = ct_img[:,::2,::2,::2]
+
+        # save3Dimage_numpy(ct_label,ct_label.shape[1:], "tests/labels_downsampled.png")
 
         # ct_labels_translate = np.unique(ct_label)
         # mr_labels_translate = np.unique(mr_label)
@@ -129,16 +142,20 @@ class DataLoaderDataset(BaseDataset):
             ct_box = tuple(ct_box)
             ct_img = ct_img[ct_box]
             ct_label = ct_label[ct_box]
+            ct_img_odd = ct_img_odd[ct_box]
+            ct_label_odd = ct_label_odd[ct_box]
 
             x = random.randint(0, np.maximum(0, ct_img.shape[1] - self.opt.crop_size))
             y = random.randint(0, np.maximum(0, ct_img.shape[2] - self.opt.crop_size))
             z = random.randint(0, np.maximum(0, ct_img.shape[3] - self.opt.crop_size_z))
             # FIXME!!!
-            x = y = z = 0
+            # x = y = z = 0
 
 
             ct_img = torch.from_numpy(ct_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
             ct_label = torch.from_numpy(ct_label[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+            ct_img_odd = torch.from_numpy(ct_img_odd[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
+            ct_label_odd = torch.from_numpy(ct_label_odd[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
 
 
             mr_box = [slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(mr_label>0)]
@@ -156,7 +173,7 @@ class DataLoaderDataset(BaseDataset):
             y = random.randint(0, np.maximum(0, mr_img.shape[2] - self.opt.crop_size))
             z = random.randint(0, np.maximum(0, mr_img.shape[3] - self.opt.crop_size_z))
             # FIXME!!!
-            x = y = z = 0
+            # x = y = z = 0
 
             
             mr_img = torch.from_numpy(mr_img[:,x:x+self.opt.crop_size, y:y+self.opt.crop_size, z:z+self.opt.crop_size_z])
@@ -183,7 +200,7 @@ class DataLoaderDataset(BaseDataset):
         
         # print(ct_path, ct_img.shape, mr_path, mr_img.shape)
 
-        return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label}
+        return {'ct': ct_img, 'mr': mr_img, 'ct_paths': ct_path, 'mr_paths': mr_path, 'ct_label': ct_label, 'mr_label': mr_label, 'ct_odd': ct_img_odd, 'ct_label_odd': ct_label_odd}
 
     def __len__(self):
         """Return the total number of images in the dataset.

@@ -134,6 +134,8 @@ class CycleGANModel(BaseModel):
         # self.real_B = torch.from_numpy(np.rollaxis(input['mr' if AtoB else 'ct'].squeeze(0).numpy(), -1, 0)).to(self.device)
         self.real_A = input['ct' if AtoB else 'mr'].to(self.device, dtype=torch.float)
         self.ground_truth_seg_A = input['ct_label' if AtoB else 'mr_label'].to(self.device, dtype=torch.float)
+        self.real_A_odd = input['ct_odd' if AtoB else 'mr'].to(self.device, dtype=torch.float)
+        self.ground_truth_seg_A_odd = input['ct_label_odd' if AtoB else 'mr_label'].to(self.device, dtype=torch.float)
         self.real_B = input['mr' if AtoB else 'ct'].to(self.device, dtype=torch.float)       
         self.ground_truth_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device, dtype=torch.float)       
         self.image_paths = input['ct_paths' if AtoB else 'mr_paths']
@@ -143,14 +145,18 @@ class CycleGANModel(BaseModel):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         if not self.opt.only_seg:
             self.fake_B = self.netG_A(self.real_A)      # G_A(A)
+            self.fake_B_odd = self.netG_A(self.real_A_odd)      # G_A(A)
             self.rec_A = self.netG_B(self.fake_B)       # G_B(G_A(A))
+            self.rec_A_odd = self.netG_B(self.fake_B_odd)       # G_B(G_A(A))
             self.fake_A = self.netG_B(self.real_B)      # G_B(B)
             self.rec_B = self.netG_A(self.fake_A)       # G_A(G_B(B))
             self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
+            self.seg_fake_B_odd = self.netS_B(self.fake_B_odd)  # S{G_A(A), Y_A}
             # self.seg_rec_A = self.netS_A(self.rec_A)    # S{G_B(G_A(A)), Y_A}
             self.seg_fake_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
             # self.seg_rec_B = self.netS_B(self.rec_B)    # S{G_A(G_B(B)), Y_A}
         self.seg_A = self.netS_A(self.real_A)
+        self.seg_A_odd = self.netS_A(self.real_A_odd)
         self.seg_B = self.netS_B(self.real_B)
 
 
@@ -236,16 +242,18 @@ class CycleGANModel(BaseModel):
         lambda_seg_from_syn = self.opt.lambda_seg_from_syn if not self.opt.only_seg else 0
 
         self.loss_S_A = self.seg_loss(self.seg_A, self.ground_truth_seg_A)
+        self.loss_S_A_odd = self.seg_loss(self.seg_A_odd, self.ground_truth_seg_A_odd)
         self.loss_S_B = self.seg_loss(self.seg_B, self.ground_truth_seg_B)
         # Syntheric loss
         if lambda_seg_from_syn > 0:
             self.loss_S_SYN_A = self.seg_loss(self.netS_A(self.netG_B(self.real_B)), self.ground_truth_seg_B) * lambda_seg_from_syn
             self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_A(self.real_A) ), self.ground_truth_seg_A) * lambda_seg_from_syn
+            self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_A(self.real_A_odd) ), self.ground_truth_seg_A_odd) * lambda_seg_from_syn
         else:
             self.loss_S_SYN_A = 0
             self.loss_S_SYN_B = 0
 
-        self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_SYN_A + self.loss_S_SYN_B
+        self.loss_S = self.loss_S_A + self.loss_S_A_odd + self.loss_S_B + self.loss_S_SYN_A + self.loss_S_SYN_B + self.loss_S_SYN_B_odd
         # combined loss and calculate gradients
         self.loss_S.backward()
 
