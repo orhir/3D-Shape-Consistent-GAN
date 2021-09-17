@@ -40,7 +40,7 @@ python test.py --dataroot test_dataset_path/ --model cycle_gan --load_name phase
 ```
 - The test results will be saved to a html file here: `./results/[load_name]/latest_test/index.html`.
 ## Acknowledgement
-Part of the code is revised from the [Tensorflow implementation of CycleGAN](https://github.com/leehomyc/cyclegan-1).
+Part of the code is revised from the [PyTorch implementation of CycleGAN](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix).
 
 ## Note
 * The repository is being updated
