@@ -16,7 +16,7 @@ cd Or-Leo_Final_Prj
   - For pip users, please type the command `pip install -r requirements.txt`.
   - For Conda users, you can create a new Conda environment using `conda env create -f environment.yml`.
 
-### Train
+## Train
 - Train a model:
   - Phase 1:
 ```bash
@@ -34,7 +34,7 @@ python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --cr
 - To see more intermediate results, check out `./checkpoints/MODEL_NAME/web/index.html`.
  - To view training results and loss plots, run `python -m visdom.server` and click the URL http://localhost:8097.
 
-### Test
+## Test
 ```bash
 python test.py --dataroot test_dataset_path/ --model cycle_gan --load_name phase_3 --crop_size 128 --crop_size_z 64 [--four_labels]
 ```
