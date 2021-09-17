@@ -71,37 +71,41 @@ if __name__ == '__main__':
 
     scores = {}
     labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+    visuals = {}
 
     for j, data in enumerate(dataset):
         if j >= opt.num_test:  # only apply our model to opt.num_test images.
             break
-        model.set_input(data)  # unpack data from data loader
+        data1 = data.copy()
+        data1['mr'] = data1['mr'][:,:,:,:,:data1['mr'].shape[4]//2]
+        data1['ct'] = data1['ct'][:,:,:,:,:data1['ct'].shape[4]//2]
+        data1['mr_label'] = data1['mr_label'][:,:,:,:,:data1['mr_label'].shape[4]//2]
+        data1['ct_label'] = data1['ct_label'][:,:,:,:,:data1['ct_label'].shape[4]//2]
+
+        data2 = data.copy()
+        data2['mr'] = data2['mr'][:,:,:,:,data2['mr'].shape[4]//2:]
+        data2['ct'] = data2['ct'][:,:,:,:,data2['ct'].shape[4]//2:]
+        data2['mr_label'] = data2['mr_label'][:,:,:,:,data2['mr_label'].shape[4]//2:]
+        data2['ct_label'] = data2['ct_label'][:,:,:,:,data2['ct_label'].shape[4]//2:]
+
+        model.set_input(data1)  # unpack data from data loader
+        print(data1['mr'].shape, data1['ct'].shape)
         model.test()           # run inference
-        visuals = model.get_current_visuals()  # get image results
+        visuals1 = model.get_current_visuals()  # get image results
+        img_path = model.get_image_paths()     # get image paths
+
+        model.set_input(data2)  # unpack data from data loader
+        print(data2['mr'].shape, data2['ct'].shape)
+        model.test()           # run inference
+        visuals2 = model.get_current_visuals()  # get image results
         img_path = model.get_image_paths()     # get image paths
 
         # Calculate metrics
         for dir in ["A", "B"]:
-            # seg = util.tensor2im(visuals["seg_" + dir])
-            # truth = util.tensor2im(visuals["ground_truth_seg_" + dir])   
-            seg = visuals["seg_" + dir].cpu().detach().numpy()
-            truth = visuals["ground_truth_seg_" + dir].cpu().detach().numpy()
-            # change labels back to original values
-            # for i in range(len(labels_translate)):
-            #     seg[seg == i] = labels_translate[i]
+            seg = np.concatenate((visuals1["seg_" + dir].cpu().detach().numpy(), visuals2["seg_" + dir].cpu().detach().numpy()), axis=4)
+            truth = np.concatenate((visuals1["ground_truth_seg_" + dir].cpu().detach().numpy(), visuals2["ground_truth_seg_" + dir].cpu().detach().numpy()), axis=4)
+            real = np.concatenate((visuals1["real_" + dir].cpu().detach().numpy(), visuals2["real_" + dir].cpu().detach().numpy()), axis=4)
 
-            # Cut segmentation margins
-            # seg_box = [slice(np.min(indexes), np.max(indexes) + 1) for indexes in np.where(truth>0)]
-            # for i in range(2, 4):
-                # if (seg_box[i].stop - seg_box[i].start) < opt.crop_size:
-                    # seg_box[i] = slice(seg_box[i].start, seg_box[i].start + opt.crop_size)
-            # if (seg_box[4].stop - seg_box[4].start) < opt.crop_size_z:
-                # seg_box[4] = slice(seg_box[4].start, seg_box[i].start + opt.crop_size_z)
-# 
-            # seg_box = tuple(seg_box)
-            # seg = seg[seg_box]
-            # truth = truth[seg_box]
-            
             # metric = dice_coef(truth, seg)
             dice_list = []
             assd_list = []
@@ -114,24 +118,19 @@ if __name__ == '__main__':
                 pred_gt_data_tr[pred_gt_data_tr != c] = 0
                 pred_gt_data_tr[pred_gt_data_tr == c] = 1
 
-                metric = sklearn.metrics.f1_score(pred_gt_data_tr.flatten(), pred_test_data_tr.flatten(), average="binary")
+                if ( not pred_gt_data_tr.any()):
+                    print(c, "is all zeros - ignore")
+                else:
+                    metric = sklearn.metrics.f1_score(pred_gt_data_tr.flatten(), pred_test_data_tr.flatten(), average="binary")
+                    # dice_score = mmb.dc(pred_test_data_tr, pred_gt_data_tr)
+                    print(metric)
+                    dice_list.append(metric)
+                    # assd_list.append(mmb.assd(pred_test_data_tr, pred_gt_data_tr))
+                    
+            visuals["real_" + dir] = torch.from_numpy(real)
+            visuals["seg_" + dir] = torch.from_numpy(seg)
+            visuals["ground_truth_seg_" + dir] = torch.from_numpy(truth)
 
-                # dice_score = mmb.dc(pred_test_data_tr, pred_gt_data_tr)
-                print(metric)
-                dice_list.append(metric)
-                # assd_list.append(mmb.assd(pred_test_data_tr, pred_gt_data_tr))
-
-
-            # dice_arr = 100 * np.reshape(dice_list, [7, -1]).transpose()
-            # dice_mean = np.mean(dice_arr, axis=1)
-
-            # dice_std = np.std(dice_arr, axis=1)
-
-            # print ('Dice:')
-            # print ('AA :%.1f(%.1f)' % (dice_mean[3], dice_std[3]))
-            # print ('LAC:%.1f(%.1f)' % (dice_mean[1], dice_std[1]))
-            # print ('LVC:%.1f(%.1f)' % (dice_mean[2], dice_std[2]))
-            # print ('Myo:%.1f(%.1f)' % (dice_mean[0], dice_std[0]))
             print ('Mean:%.1f' % np.mean(dice_list))
 
             # metric = sklearn.metrics.f1_score(truth.flatten(), seg.flatten(), average='samples', sample_weight = np.array([0,1,1,1,1,1,1,1]))
@@ -140,21 +139,7 @@ if __name__ == '__main__':
             else:
                 scores[dir] = np.array([np.mean(dice_list)])
 
-            # assd_arr = np.reshape(assd_list, [4, -1]).transpose()
 
-            # assd_mean = np.mean(assd_arr, axis=1)
-            # assd_std = np.std(assd_arr, axis=1)
-
-            # print ('ASSD:')
-            # print ('AA :%.1f(%.1f)' % (assd_mean[3], assd_std[3]))
-            # print ('LAC:%.1f(%.1f)' % (assd_mean[1], assd_std[1]))
-            # print ('LVC:%.1f(%.1f)' % (assd_mean[2], assd_std[2]))
-            # print ('Myo:%.1f(%.1f)' % (assd_mean[0], assd_std[0]))
-            # print ('Mean:%.1f' % np.mean(assd_mean))
-
-
-            visuals["seg_" + dir] = torch.from_numpy(seg)
-            visuals["ground_truth_seg_" + dir] = torch.from_numpy(truth)
         
         
         if j % 1 == 0:  # save images to an HTML file

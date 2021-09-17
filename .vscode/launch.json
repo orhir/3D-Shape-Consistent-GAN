@@ -11,11 +11,18 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": [
-                "--dataroot", "/mnt/storage/datasets/ct_mri_3d_dataset/original_with_npz/",
+                "--dataroot", "/mnt/storage/datasets/ct_mri_3d_dataset/custom_divided/",
                 "--model", "cycle_gan", 
                 "--gpu_ids", "0,1,2,3,4,5,6,7", 
-                "--load_name", "/mnt/storage/datasets/ct_mri_3d_dataset/checkpoints_server_3/Exp_7_5_divided_untrained_seg/",
-                "--preprocess", "none", 
+                "--load_name", "/mnt/storage/datasets/ct_mri_3d_dataset/checkpoints_server_3/debug/",
+                "--lambda_identity", "0", 
+                "--batch_size", "8", 
+                "--crop_size_z", "64", 
+                "--crop_size", "128", 
+                "--max_dataset_size", "200", 
+                "--load_name", "/home/dginzburg/Or-Leo_Final_Prj/checkpoints/Exp_23_7_untrained_seg_200_aug", 
+                "--lambda_gen_from_seg", "1", 
+                "--load_seg", 
             ]
         }
     ]

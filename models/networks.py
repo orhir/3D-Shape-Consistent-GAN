@@ -211,7 +211,7 @@ def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal'
     return init_net(net, init_type, init_gain, gpu_ids)
 
 
-def define_S(input_nc, output_nc, nsf, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[], use_dropout=False):
+def define_S(input_nc, output_nc, nsf, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[], use_dropout=False, num_of_labels = 8):
     """Create a segmentor
 
     Parameters:
@@ -229,7 +229,7 @@ def define_S(input_nc, output_nc, nsf, norm='batch', init_type='normal', init_ga
     # net = None
     # norm_layer = get_norm_layer(norm_type=norm)
 
-    net = UnetSegmentor(input_nc, output_nc)
+    net = UnetSegmentor(input_nc, output_nc, num_groups = num_of_labels)
 
     return init_net(net, init_type, init_gain, gpu_ids)
 
@@ -526,7 +526,7 @@ class Abstract3DUNet(nn.Module):
     """
 
     def __init__(self, in_channels, out_channels, final_sigmoid, basic_module, f_maps=64, layer_order='gcr',
-                 num_groups=8, num_levels=4, is_segmentation=True, testing=False,
+                 num_groups=8 , num_levels=4, is_segmentation=True, testing=False,
                  conv_kernel_size=3, pool_kernel_size=2, conv_padding=1, **kwargs):
         super(Abstract3DUNet, self).__init__()
 

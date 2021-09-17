@@ -5,6 +5,7 @@ from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
 import numpy as np
+from GPUtil import showUtilization as gpu_usage
 
 class CycleGANModel(BaseModel):
     """
@@ -41,11 +42,12 @@ class CycleGANModel(BaseModel):
         if is_train:
             parser.add_argument('--lambda_A', type=float, default=10.0, help='weight for cycle loss (A -> B -> A)')
             parser.add_argument('--lambda_B', type=float, default=10.0, help='weight for cycle loss (B -> A -> B)')
-            parser.add_argument('--lambda_seg_A', type=float, default=0.5, help='weight for cycle loss (A -> B -> A)')
-            parser.add_argument('--lambda_seg_B', type=float, default=0.5, help='weight for cycle loss (B -> A -> B)')
+            parser.add_argument('--lambda_seg_A', type=float, default=1, help='weight for cycle loss (A -> B -> A)')
+            parser.add_argument('--lambda_seg_B', type=float, default=1, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             parser.add_argument('--lambda_seg_from_syn', type=float, default=0, help='use to teach segmentor from synthetic data')
-            parser.add_argument('--lambda_gen_from_seg', type=float, default=0, help='use to teach generator from segmentation data')
+            parser.add_argument('--lambda_gen_from_seg', type=float, default=5, help='use to teach generator from segmentation data')
+            parser.add_argument('--fist_gen_from_seg_epoch', type=float, default=100, help='first epoch lambda_gen_from_seg is not 0')
 
         return parser
 
@@ -58,22 +60,62 @@ class CycleGANModel(BaseModel):
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
         if not self.opt.only_seg:
-            self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'S_A', 'S_B', 'GS_A', 'GS_B', 'S_SYN_A', 'S_SYN_B']
-            visual_names_A = ['real_A', 'fake_B', 'rec_A', 'ground_truth_seg_A', 'seg_A']
-            visual_names_B = ['real_B', 'fake_A', 'rec_B', 'ground_truth_seg_B', 'seg_B']
+            self.loss_names = []
+            visual_names_A = ['real_A', 'fake_B', 'ground_truth_seg_A']
+            visual_names_B = ['real_B', 'fake_A', 'ground_truth_seg_B']
             # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
+            if self.opt.lambda_gen_from_seg != 0:
+                self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'GS_A', 'GS_B']
+                self.loss_names.append('rec_A')
+                self.loss_names.append('rec_B')
+                visual_names_A.append('rec_A')
+                visual_names_B.append('rec_B')
             if self.isTrain and self.opt.lambda_identity > 0.0 :  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
                 visual_names_A.append('idt_B')
                 visual_names_B.append('idt_A')
+            if self.isTrain and self.opt.lambda_gen_from_seg == 0:
+                self.loss_names.append('S_A')
+                self.loss_names.append('S_B')
+                visual_names_A.append('seg_A')
+                visual_names_B.append('seg_B')
             if self.isTrain and self.opt.lambda_seg_from_syn > 0.0 :
+                self.loss_names.append('S_SYN_A')
+                self.loss_names.append('S_SYN_B')                
                 visual_names_A.append('seg_fake_B')
                 visual_names_B.append('seg_fake_A')
+
+
+
         else:
             self.loss_names = ['S_A', 'S_B']
             visual_names_A = ['real_A', 'ground_truth_seg_A', 'seg_A']
             visual_names_B = ['real_B', 'ground_truth_seg_B', 'seg_B']
 
-        self.labels_translate = [0, 205, 420, 500, 550, 600, 820, 850]
+
+        if(self.opt.four_labels):
+            self.labels_translate = {
+                0 : 0,      # Background
+                205 : 1,    # MYO
+                420 : 2,    # LAC
+                500 : 3,    # LVC
+                550 : 0,    # RAC
+                600 : 0,    # RVC
+                820 : 4,    # AA
+                850 : 0,    # pulmonary artery
+            }
+            self.num_of_labels = 5
+        else:
+            self.labels_translate = {
+                0 : 0,      # Background
+                205 : 1,    # MYO
+                420 : 2,    # LAC
+                500 : 3,    # LVC
+                550 : 4,    # RAC
+                600 : 5,    # RVC
+                820 : 6,    # AA
+                850 : 7,    # pulmonary artery
+            }
+            self.num_of_labels = 8
 
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
@@ -134,30 +176,29 @@ class CycleGANModel(BaseModel):
         # self.real_B = torch.from_numpy(np.rollaxis(input['mr' if AtoB else 'ct'].squeeze(0).numpy(), -1, 0)).to(self.device)
         self.real_A = input['ct' if AtoB else 'mr'].to(self.device, dtype=torch.float)
         self.ground_truth_seg_A = input['ct_label' if AtoB else 'mr_label'].to(self.device, dtype=torch.float)
-        self.real_A_odd = input['ct_odd' if AtoB else 'mr'].to(self.device, dtype=torch.float)
-        self.ground_truth_seg_A_odd = input['ct_label_odd' if AtoB else 'mr_label'].to(self.device, dtype=torch.float)
         self.real_B = input['mr' if AtoB else 'ct'].to(self.device, dtype=torch.float)       
         self.ground_truth_seg_B = input['mr_label' if AtoB else 'ct_label'].to(self.device, dtype=torch.float)       
         self.image_paths = input['ct_paths' if AtoB else 'mr_paths']
+
 
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
         if not self.opt.only_seg:
             self.fake_B = self.netG_A(self.real_A)      # G_A(A)
-            self.fake_B_odd = self.netG_A(self.real_A_odd)      # G_A(A)
-            self.rec_A = self.netG_B(self.fake_B)       # G_B(G_A(A))
-            self.rec_A_odd = self.netG_B(self.fake_B_odd)       # G_B(G_A(A))
             self.fake_A = self.netG_B(self.real_B)      # G_B(B)
-            self.rec_B = self.netG_A(self.fake_A)       # G_A(G_B(B))
             self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
-            self.seg_fake_B_odd = self.netS_B(self.fake_B_odd)  # S{G_A(A), Y_A}
             # self.seg_rec_A = self.netS_A(self.rec_A)    # S{G_B(G_A(A)), Y_A}
             self.seg_fake_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
             # self.seg_rec_B = self.netS_B(self.rec_B)    # S{G_A(G_B(B)), Y_A}
-        self.seg_A = self.netS_A(self.real_A)
-        self.seg_A_odd = self.netS_A(self.real_A_odd)
-        self.seg_B = self.netS_B(self.real_B)
+        
+        if not self.opt.isTrain or self.opt.lambda_gen_from_seg == 0:
+            self.seg_A = self.netS_A(self.real_A)
+            self.seg_B = self.netS_B(self.real_B)
+        else:
+            self.rec_A = self.netG_B(self.fake_B)       # G_B(G_A(A))
+            self.rec_B = self.netG_A(self.fake_A)       # G_A(G_B(B))
+
 
 
     def backward_D_basic(self, netD, real, fake):
@@ -194,14 +235,18 @@ class CycleGANModel(BaseModel):
         fake_A = self.fake_A_pool.query(self.fake_A)
         self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
 
-    def backward_G(self):
+    def backward_G(self, epoch):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
         lambda_seg_A = self.opt.lambda_seg_A
         lambda_seg_B = self.opt.lambda_seg_B
-        lambda_seg = self.opt.lambda_gen_from_seg
+
+        if epoch < self.opt.fist_gen_from_seg_epoch:
+            lambda_seg = 0
+        else:
+            lambda_seg = self.opt.lambda_gen_from_seg
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -214,6 +259,19 @@ class CycleGANModel(BaseModel):
             self.loss_idt_A = 0
             self.loss_idt_B = 0
 
+        #Segmentation loss:
+        if lambda_seg > 0:
+            # with torch.no_grad():
+            self.loss_GS_A = self.seg_loss(self.seg_fake_A, self.ground_truth_seg_B) * lambda_seg_A * lambda_seg
+            self.loss_GS_B = self.seg_loss(self.seg_fake_B, self.ground_truth_seg_A) * lambda_seg_B * lambda_seg
+
+            # FIXME : Why not comapring to the seg feedforward?
+            # self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A).detach(), self.seg_B) * lambda_seg_A * lambda_seg
+            # self.loss_GS_B = self.seg_loss(self.netS_B(self.fake_B).detach(), self.seg_A) * lambda_seg_B * lambda_seg
+        else:
+            self.loss_GS_A = 0
+            self.loss_GS_B = 0
+
         # GAN loss D_A(G_A(A))
         self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
         # GAN loss D_B(G_B(B))
@@ -222,38 +280,30 @@ class CycleGANModel(BaseModel):
         self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
         # Backward cycle loss || G_A(G_B(B)) - B||
         self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
-        #Segmentation loss:
-        if lambda_seg > 0:
-            self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A), self.ground_truth_seg_B) * lambda_seg_A * lambda_seg
-            self.loss_GS_B = self.seg_loss(self.netS_B(self.fake_B), self.ground_truth_seg_A) * lambda_seg_B * lambda_seg
-        else:
-            self.loss_GS_A = 0
-            self.loss_GS_B = 0
+
         # combined loss and calculate gradients
-        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B +self.loss_GS_A +self.loss_GS_B
+        self.loss_G = self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B + self.loss_idt_A + self.loss_idt_B + self.loss_GS_A + self.loss_GS_B
         self.loss_G.backward()
 
     def seg_loss(self, seg, truth):
         loss = torch.nn.CrossEntropyLoss()
-        return loss(seg.permute(0, 2, 3, 4, 1).contiguous().view(-1,len(self.labels_translate)), truth.view(-1,1).squeeze().contiguous().view(-1).long())
+        return loss(seg.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), truth.view(-1,1).squeeze().contiguous().view(-1).long())
 
     def backward_S(self):
         """Calculate the loss for segmentors S_A and S_B"""
         lambda_seg_from_syn = self.opt.lambda_seg_from_syn if not self.opt.only_seg else 0
 
         self.loss_S_A = self.seg_loss(self.seg_A, self.ground_truth_seg_A)
-        self.loss_S_A_odd = self.seg_loss(self.seg_A_odd, self.ground_truth_seg_A_odd)
         self.loss_S_B = self.seg_loss(self.seg_B, self.ground_truth_seg_B)
         # Syntheric loss
         if lambda_seg_from_syn > 0:
-            self.loss_S_SYN_A = self.seg_loss(self.netS_A(self.netG_B(self.real_B)), self.ground_truth_seg_B) * lambda_seg_from_syn
-            self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_A(self.real_A) ), self.ground_truth_seg_A) * lambda_seg_from_syn
-            self.loss_S_SYN_B = self.seg_loss(self.netS_B(self.netG_A(self.real_A_odd) ), self.ground_truth_seg_A_odd) * lambda_seg_from_syn
+            self.loss_S_SYN_A = self.seg_loss(self.seg_fake_A, self.ground_truth_seg_B) * lambda_seg_from_syn
+            self.loss_S_SYN_B = self.seg_loss(self.seg_fake_B, self.ground_truth_seg_A) * lambda_seg_from_syn
         else:
             self.loss_S_SYN_A = 0
             self.loss_S_SYN_B = 0
 
-        self.loss_S = self.loss_S_A + self.loss_S_A_odd + self.loss_S_B + self.loss_S_SYN_A + self.loss_S_SYN_B + self.loss_S_SYN_B_odd
+        self.loss_S = self.loss_S_A + self.loss_S_B + self.loss_S_SYN_A + self.loss_S_SYN_B
         # combined loss and calculate gradients
         self.loss_S.backward()
 
@@ -266,18 +316,21 @@ class CycleGANModel(BaseModel):
             self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
 
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, epoch):
         """Calculate losses, gradients, and update network weights; called in every training iteration"""
-
         # torch.autograd.set_detect_anomaly(True)
-        
+
         # forward
         self.forward()      # compute fake images and reconstruction images.
-        if not self.opt.only_seg:
+        
+
+        # if not self.opt.only_seg:
+        if (not self.opt.only_seg) and self.opt.lambda_gen_from_seg != 0:
             # G_A and G_B
+            self.set_requires_grad([self.netS_A, self.netS_B], False)  # Ss require no gradients when optimizing Gs and Ds
             self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
             self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-            self.backward_G()             # calculate gradients for G_A and G_B
+            self.backward_G(epoch)             # calculate gradients for G_A and G_B
             self.optimizer_G.step()       # update G_A and G_B's weights
             # D_A and D_B
             self.set_requires_grad([self.netD_A, self.netD_B], True)
@@ -285,10 +338,15 @@ class CycleGANModel(BaseModel):
             self.backward_D_A()      # calculate gradients for D_A
             self.backward_D_B()      # calculate graidents for D_B
             self.optimizer_D.step()  # update D_A and D_B's weights
+        
+        # No need to update segmentor during phase 2 - reduce memory consumption
+        if self.opt.lambda_gen_from_seg == 0:
             # S_A and S_B
-        self.set_requires_grad([self.netS_A, self.netS_B], True) 
-        self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
-        self.backward_S()             # calculate gradients for S_A and S_B
-        self.optimizer_S.step()       # update S_A and S_B's weights
-        self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,8,H,W,D)
+            self.set_requires_grad([self.netS_A, self.netS_B], True) 
+            self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Ss
+            self.set_requires_grad([self.netG_A, self.netG_B], False)  # Gs require no gradients when optimizing Ss
+            self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
+            self.backward_S()             # calculate gradients for S_A and S_B
+            self.optimizer_S.step()       # update S_A and S_B's weights
+            self.get_segmentation_by_max() #change the segmentation to (B,1,H,W,D) instead (B,8,H,W,D)
 
