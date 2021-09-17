@@ -18,15 +18,15 @@ cd Or-Leo_Final_Prj
 
 ## Train
 - Train a model:
-  - Phase 1:
+  -- Phase 1:
 ```bash
 python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --crop_size 256 --only_seg --max_dataset_size 200 --name phase_1 --train_phase 1 [--four_labels]
 ```
-  - Phase 2:
+  -- Phase 2:
 ```bash
 python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --crop_size 256 --load_seg --load_name phase_1 --max_dataset_size 200 --name phase_2 --train_phase 2 [--four_labels]
 ``` 
-  - Phase 3:
+  -- Phase 3:
 ```bash
 python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --crop_size 256 --load_all_networks --load_name phase_2 --max_dataset_size 200 --name phase_2 --lambda_seg_from_syn 0.5 --train_phase 3 [--four_labels]
 ``` 
