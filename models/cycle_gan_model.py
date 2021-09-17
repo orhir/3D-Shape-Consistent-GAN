@@ -66,10 +66,10 @@ class CycleGANModel(BaseModel):
             visual_names_B = ['real_B', 'fake_A', 'ground_truth_seg_B']
             # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
             if self.isTrain :
-                if self.phase != 1: # In phase 1 no Generator and Discriminator
+                if self.phase == 2: # In phase 1 no Generator and Discriminator
                     self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'GS_A', 'GS_B']
-                    self.loss_names.append('rec_A')
-                    self.loss_names.append('rec_B')
+                    self.loss_names.append('cycle_A')
+                    self.loss_names.append('cycle_B')
                     visual_names_A.append('rec_A')
                     visual_names_B.append('rec_B')
                 if self.opt.lambda_identity > 0.0 :  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
@@ -340,8 +340,9 @@ class CycleGANModel(BaseModel):
         else:
             # S_A and S_B
             self.set_requires_grad([self.netS_A, self.netS_B], True) 
-            self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Ss
-            self.set_requires_grad([self.netG_A, self.netG_B], False)  # Gs require no gradients when optimizing Ss
+            if self.phase == 3:
+                self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Ss
+                self.set_requires_grad([self.netG_A, self.netG_B], False)  # Gs require no gradients when optimizing Ss
             self.optimizer_S.zero_grad()  # set S_A and S_B's gradients to zero
             self.backward_S()             # calculate gradients for S_A and S_B
             self.optimizer_S.step()       # update S_A and S_B's weights
