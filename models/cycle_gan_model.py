@@ -47,7 +47,7 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_identity', type=float, default=0, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             parser.add_argument('--lambda_seg_from_syn', type=float, default=0, help='use to teach segmentor from synthetic data')
             parser.add_argument('--lambda_gen_from_seg', type=float, default=5, help='use to teach generator from segmentation data')
-            parser.add_argument('--fist_gen_from_seg_epoch', type=float, default=100, help='first epoch lambda_gen_from_seg is not 0')
+            parser.add_argument('--first_gen_from_seg_epoch', type=float, default=100, help='first epoch lambda_gen_from_seg is not 0')
 
         return parser
 
@@ -58,35 +58,39 @@ class CycleGANModel(BaseModel):
             opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
+        self.phase = self.opt.train_phase if self.opt.isTrain else 0
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        if not self.opt.only_seg:
+        if self.phase != 1:
             self.loss_names = []
             visual_names_A = ['real_A', 'fake_B', 'ground_truth_seg_A']
             visual_names_B = ['real_B', 'fake_A', 'ground_truth_seg_B']
             # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
-            if self.opt.lambda_gen_from_seg != 0:
-                self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'GS_A', 'GS_B']
-                self.loss_names.append('rec_A')
-                self.loss_names.append('rec_B')
-                visual_names_A.append('rec_A')
-                visual_names_B.append('rec_B')
-            if self.isTrain and self.opt.lambda_identity > 0.0 :  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
-                visual_names_A.append('idt_B')
-                visual_names_B.append('idt_A')
-            if self.isTrain and self.opt.lambda_gen_from_seg == 0:
-                self.loss_names.append('S_A')
-                self.loss_names.append('S_B')
-                visual_names_A.append('seg_A')
-                visual_names_B.append('seg_B')
-            if self.isTrain and self.opt.lambda_seg_from_syn > 0.0 :
-                self.loss_names.append('S_SYN_A')
-                self.loss_names.append('S_SYN_B')                
-                visual_names_A.append('seg_fake_B')
-                visual_names_B.append('seg_fake_A')
-
-
-
-        else:
+            if self.isTrain :
+                if self.phase != 1: # In phase 1 no Generator and Discriminator
+                    self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'GS_A', 'GS_B']
+                    self.loss_names.append('rec_A')
+                    self.loss_names.append('rec_B')
+                    visual_names_A.append('rec_A')
+                    visual_names_B.append('rec_B')
+                if self.opt.lambda_identity > 0.0 :  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
+                    visual_names_A.append('idt_B')
+                    visual_names_B.append('idt_A')
+                if self.phase == 1 or self.phase == 3:
+                    self.loss_names.append('S_A')
+                    self.loss_names.append('S_B')
+                    visual_names_A.append('seg_A')
+                    visual_names_B.append('seg_B')
+                if self.phase == 3 :
+                    self.loss_names.append('S_SYN_A')
+                    self.loss_names.append('S_SYN_B')                
+                    visual_names_A.append('seg_fake_B')
+                    visual_names_B.append('seg_fake_A')
+            else: # Test segmentation
+                    self.loss_names.append('S_A')
+                    self.loss_names.append('S_B')
+                    visual_names_A.append('seg_A')
+                    visual_names_B.append('seg_B')
+        else: # Phase 1
             self.loss_names = ['S_A', 'S_B']
             visual_names_A = ['real_A', 'ground_truth_seg_A', 'seg_A']
             visual_names_B = ['real_B', 'ground_truth_seg_B', 'seg_B']
@@ -119,9 +123,9 @@ class CycleGANModel(BaseModel):
 
         self.visual_names = visual_names_A + visual_names_B  # combine visualizations for A and B
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>.
-        if self.isTrain and not self.opt.only_seg:
+        if self.isTrain and not self.phase == 1:
             self.model_names = ['G_A', 'G_B', 'D_A', 'D_B', 'S_A', 'S_B']
-        else:  # during test time, only load Gs and Ss
+        else:  # during test time, only Ss
             self.model_names = ['S_A', 'S_B']
 
         # define networks (both Generators and discriminators)
@@ -132,7 +136,7 @@ class CycleGANModel(BaseModel):
         self.netS_A =  networks.define_S(opt.input_nc, opt.seg_output_nc, opt.nsf, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
         self.netS_B =  networks.define_S(opt.input_nc, opt.seg_output_nc, opt.nsf, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
 
-        if self.isTrain and not self.opt.only_seg:  # define discriminators
+        if self.isTrain and not self.phase == 1:  # define discriminators
             self.netD_A = networks.define_D(opt.output_nc, opt.ndf, opt.netD,
                                             opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
             self.netD_B = networks.define_D(opt.input_nc, opt.ndf, opt.netD,
@@ -152,7 +156,7 @@ class CycleGANModel(BaseModel):
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            if not self.opt.only_seg:
+            if not self.phase == 1:
                 self.optimizer_G = torch.optim.Adam(itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
                 self.optimizer_D = torch.optim.Adam(itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()), lr=opt.lr, betas=(opt.beta1, 0.999))
                 self.optimizers.append(self.optimizer_G)
@@ -184,7 +188,7 @@ class CycleGANModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        if not self.opt.only_seg:
+        if self.phase != 1:
             self.fake_B = self.netG_A(self.real_A)      # G_A(A)
             self.fake_A = self.netG_B(self.real_B)      # G_B(B)
             self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
@@ -192,7 +196,7 @@ class CycleGANModel(BaseModel):
             self.seg_fake_A = self.netS_A(self.fake_A)  # S{G_B(B), Y_B}
             # self.seg_rec_B = self.netS_B(self.rec_B)    # S{G_A(G_B(B)), Y_A}
         
-        if not self.opt.isTrain or self.opt.lambda_gen_from_seg == 0:
+        if not self.opt.isTrain or self.phase != 2:
             self.seg_A = self.netS_A(self.real_A)
             self.seg_B = self.netS_B(self.real_B)
         else:
@@ -203,8 +207,6 @@ class CycleGANModel(BaseModel):
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
-
-        
 
         Parameters:
             netD (network)      -- the discriminator D
@@ -243,7 +245,7 @@ class CycleGANModel(BaseModel):
         lambda_seg_A = self.opt.lambda_seg_A
         lambda_seg_B = self.opt.lambda_seg_B
 
-        if epoch < self.opt.fist_gen_from_seg_epoch:
+        if epoch < self.opt.first_gen_from_seg_epoch or self.phase != 2:
             lambda_seg = 0
         else:
             lambda_seg = self.opt.lambda_gen_from_seg
@@ -264,8 +266,7 @@ class CycleGANModel(BaseModel):
             # with torch.no_grad():
             self.loss_GS_A = self.seg_loss(self.seg_fake_A, self.ground_truth_seg_B) * lambda_seg_A * lambda_seg
             self.loss_GS_B = self.seg_loss(self.seg_fake_B, self.ground_truth_seg_A) * lambda_seg_B * lambda_seg
-
-            # FIXME : Why not comapring to the seg feedforward?
+            # FIXME : Not comapring to the seg feedforward because of high memory consumption running Segmentors
             # self.loss_GS_A = self.seg_loss(self.netS_A(self.fake_A).detach(), self.seg_B) * lambda_seg_A * lambda_seg
             # self.loss_GS_B = self.seg_loss(self.netS_B(self.fake_B).detach(), self.seg_A) * lambda_seg_B * lambda_seg
         else:
@@ -291,7 +292,7 @@ class CycleGANModel(BaseModel):
 
     def backward_S(self):
         """Calculate the loss for segmentors S_A and S_B"""
-        lambda_seg_from_syn = self.opt.lambda_seg_from_syn if not self.opt.only_seg else 0
+        lambda_seg_from_syn = self.opt.lambda_seg_from_syn if self.phase == 3 else 0
 
         self.loss_S_A = self.seg_loss(self.seg_A, self.ground_truth_seg_A)
         self.loss_S_B = self.seg_loss(self.seg_B, self.ground_truth_seg_B)
@@ -311,7 +312,7 @@ class CycleGANModel(BaseModel):
     def get_segmentation_by_max(self):
         self.seg_A = self.seg_A.argmax(dim=1, keepdim=True)
         self.seg_B = self.seg_B.argmax(dim=1, keepdim=True)
-        if not self.opt.only_seg:
+        if self.phase != 1:
             self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
             self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
 
@@ -323,9 +324,7 @@ class CycleGANModel(BaseModel):
         # forward
         self.forward()      # compute fake images and reconstruction images.
         
-
-        # if not self.opt.only_seg:
-        if (not self.opt.only_seg) and self.opt.lambda_gen_from_seg != 0:
+        if self.phase == 2:
             # G_A and G_B
             self.set_requires_grad([self.netS_A, self.netS_B], False)  # Ss require no gradients when optimizing Gs and Ds
             self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Gs
@@ -337,10 +336,8 @@ class CycleGANModel(BaseModel):
             self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
             self.backward_D_A()      # calculate gradients for D_A
             self.backward_D_B()      # calculate graidents for D_B
-            self.optimizer_D.step()  # update D_A and D_B's weights
-        
-        # No need to update segmentor during phase 2 - reduce memory consumption
-        if self.opt.lambda_gen_from_seg == 0:
+            self.optimizer_D.step()  # update D_A and D_B's weights      
+        else:
             # S_A and S_B
             self.set_requires_grad([self.netS_A, self.netS_B], True) 
             self.set_requires_grad([self.netD_A, self.netD_B], False)  # Ds require no gradients when optimizing Ss
