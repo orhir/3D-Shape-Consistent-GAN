@@ -5,6 +5,7 @@ import ntpath
 import time
 from . import util, html
 from subprocess import Popen, PIPE
+import nibabel as nib
 
 
 if sys.version_info[0] == 2:
@@ -41,7 +42,8 @@ def save_images(webpage, visuals, image_path, aspect_ratio=1.0, width=256):
         im = util.tensor2im(im_data)
         image_name = '%s_%s.png' % (name, label)
         save_path = os.path.join(image_dir, image_name)
-        util.save3Dimage_numpy(im, save_path)
+        util.save3Dimage_numpy(im_data.squeeze(), save_path, label)
+
         ims.append(image_name)
         txts.append(label)
         links.append(image_name)

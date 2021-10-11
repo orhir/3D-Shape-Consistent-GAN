@@ -61,6 +61,7 @@ class BaseOptions():
         parser.add_argument('--train_phase', type=int, default=0, help='train_phase: [0, 1, 2, 3]')
         parser.add_argument('--four_labels', action='store_true', default=False, help='use only 4 labels out of 8')
         parser.add_argument('--no_crop', action='store_true', default=False, help='no crop at all')
+        parser.add_argument('--crop_by_labels', action='store_true', default=False, help='Crop by labels and not randomly')
         self.initialized = True
         return parser
 

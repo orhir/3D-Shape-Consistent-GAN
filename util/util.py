@@ -5,6 +5,7 @@ import numpy as np
 from PIL import Image
 import os
 import matplotlib.pyplot as plt
+import matplotlib.colors as clr
 
 
 def tensor2im(input_image, imtype=np.uint8):
@@ -46,19 +47,59 @@ def diagnose_network(net, name='network'):
     print(name)
     print(mean)
 
-def save3Dimage_numpy(img3d, path):
+def save3Dimage_numpy(img3d, path, label=None):
 
         img_shape = img3d.shape
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
-        ax1.imshow(img3d[:, :, 0], cmap="gray")
-        ax1.title.set_text("Z=0")
-        ax1.axis('off') 
-        ax2.imshow(img3d[:, :, img_shape[2]//2], cmap="gray")
-        ax2.title.set_text("Z=middle")
-        ax2.axis('off') 
-        ax3.imshow(img3d[:, :, img_shape[2]-1], cmap="gray")
-        ax3.title.set_text("Z=end")
+        # fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+        fig, ax3 = plt.subplots(1)
+        # ax1.imshow(img3d[img_shape[0]//2, :, :], cmap="gray")
+        # ax1.title.set_text("Middle X")
+        # ax1.axis('off') 
+        # ax2.imshow(img3d[:, img_shape[1]//2, :], cmap="gray")
+        # ax2.title.set_text("Middle Y")
+        # ax2.axis('off') 
+        cmap = clr.ListedColormap(["black", "black", "black", "black", "lightskyblue", "black", "black", "black", "black", "lightsalmon", "papayawhip", "lightpink"])
+        print("labels", np.unique(img3d))
+        if "_B" in label:
+            img3d = img3d[:, 50:230, :]
+        ax3.imshow(img3d[:, :, img_shape[2]//2+5], cmap=cmap)
+        # ax3.title.set_text("Middle Z")
         ax3.axis('off') 
+
+        plt.savefig(path)
+        plt.close('all')
+
+def save3D_3slices_numpy(img3d, path):
+
+        img_shape = img3d.shape
+        fig, ((ax1_a, ax1_b, ax1_c), (ax2_a, ax2_b, ax2_c), (ax3_a, ax3_b, ax3_c)) = plt.subplots(3, 3)
+        ax1_a.imshow(img3d[img_shape[0]//4, :, :], cmap="gray")
+        ax1_a.title.set_text("1/4")
+        ax1_a.axis('off') 
+        ax1_b.imshow(img3d[2*(img_shape[0]//4), :, :], cmap="gray")
+        ax1_b.title.set_text("1/2")
+        ax1_b.axis('off') 
+        ax1_c.imshow(img3d[3*(img_shape[0]//4), :, :], cmap="gray")
+        ax1_c.title.set_text("3/4")
+        ax1_c.axis('off') 
+        ax2_a.imshow(img3d[:, img_shape[1]//4, :], cmap="gray")
+        ax2_a.title.set_text("1/4")
+        ax2_a.axis('off') 
+        ax2_b.imshow(img3d[:, 2*(img_shape[1]//4), :], cmap="gray")
+        ax2_b.title.set_text("1/2")
+        ax2_b.axis('off') 
+        ax2_c.imshow(img3d[:, 3*(img_shape[1]//4), :], cmap="gray")
+        ax2_c.title.set_text("3/4")
+        ax2_c.axis('off') 
+        ax3_a.imshow(img3d[:, :, img_shape[2]//4], cmap="gray")
+        ax3_a.title.set_text("1/4")
+        ax3_a.axis('off') 
+        ax3_b.imshow(img3d[:, :, 2*(img_shape[2]//4)], cmap="gray")
+        ax3_b.title.set_text("1/2")
+        ax3_b.axis('off') 
+        ax3_c.imshow(img3d[:, :, 3*(img_shape[2]//4)], cmap="gray")
+        ax3_c.title.set_text("3/4")
+        ax3_c.axis('off') 
 
         plt.savefig(path)
         plt.close('all')

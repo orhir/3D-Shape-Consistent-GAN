@@ -83,8 +83,8 @@ def get_transform(opt, params=None, convert=False, method=Image.BICUBIC):
         # transform_list.append(tio.CropOrPad((opt.crop_size, opt.crop_size, opt.crop_size_z)))
     # return tio.Compose(transform_list)
 
-    if opt.preprocess == 'none':
-        transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=64, method=method)))
+    # if opt.preprocess == 'none':
+        # transform_list.append(transforms.Lambda(lambda img: __make_power_2(img, base=64, method=method)))
 
     return transforms.Compose(transform_list)
 

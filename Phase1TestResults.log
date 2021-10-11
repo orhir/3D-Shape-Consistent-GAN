@@ -1,0 +1,64 @@
+----------------- Options ---------------
+             aspect_ratio: 1.0                           
+               batch_size: 8                             
+          checkpoints_dir: ./checkpoints                 
+                crop_size: 128                           
+              crop_size_z: 64                            	[default: 32]
+                 dataroot: ct_mri_3d_dataset/SIFA_Aligned_Resized_NPZ_Augmented_Dataset/	[default: None]
+             dataset_mode: dataLoader                    
+                direction: cttomr                        
+          display_winsize: 256                           
+                    epoch: latest                        
+                     eval: False                         
+              four_labels: True                          	[default: False]
+                  gpu_ids: 0,1,2,3,4,5,6,7               	[default: 0]
+                init_gain: 0.02                          
+                init_type: normal                        
+                 input_nc: 1                             
+                  isTrain: False                         	[default: None]
+                load_iter: 0                             	[default: 0]
+                load_name: Resized_4_lables_pahse_1_9_24_short_padded/	[default: ]
+                load_size: 128                           
+              load_size_z: 128                           
+         max_dataset_size: inf                           
+                    model: cycle_gan                     	[default: test]
+               n_layers_D: 3                             
+                     name: experiment_name               
+                      ndf: 64                            
+                     netD: basic                         
+                     netG: unet_256                      
+                      ngf: 64                            
+                  no_crop: False                         
+               no_dropout: True                          
+                  no_flip: False                         
+                     norm: instance                      
+                      nsf: 64                            
+                 num_test: 50                            
+              num_threads: 4                             
+                output_nc: 1                             
+                    phase: test                          
+               preprocess: resize_and_crop               
+              results_dir: ./results/                    
+            seg_output_nc: 8                             
+           serial_batches: False                         
+                   suffix:                               
+              train_phase: 0                             
+                  verbose: False                         
+----------------- End -------------------
+dataset [DataLoaderDataset] was created
+initialize network with normal
+initialize network with normal
+model [CycleGANModel] was created
+loading the model from ./checkpoints/Resized_4_lables_pahse_1_9_24_short_padded/latest_net_S_A.pth
+loading the model from ./checkpoints/Resized_4_lables_pahse_1_9_24_short_padded/latest_net_S_B.pth
+---------- Networks initialized -------------
+[Network S_A] Total number of parameters : 16.319 M
+[Network S_B] Total number of parameters : 16.319 M
+-----------------------------------------------
+creating web directory ./results/Resized_4_lables_pahse_1_9_24_short_padded/test_latest
+A Mean:0.0 [0. 0. 0. 0.]
+B Mean:0.0 [0. 0. 0. 0. 0. 0.]
+processing (0000)-th image... ['ct_mri_3d_dataset/SIFA_Aligned_Resized_NPZ_Augmented_Dataset/testct/ct_test_0_image.npz']
+A Mean:0.0 [0. 0. 0. 0.]
+B Mean:0.0 [0. 0. 0. 0. 0. 0.]
+processing (0001)-th image... ['ct_mri_3d_dataset/SIFA_Aligned_Resized_NPZ_Augmented_Dataset/testct/ct_test_1_image.npz']

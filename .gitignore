@@ -1,3 +1,12 @@
 checkpoints/
 .history/
-tests/*.png
+tests/
+results/
+testsImages/
+Images_Print/
+tests_SIFA/
+trainImages/
+output/
+ct_mri_3d_dataset/
+ct_0_before.png
+testImages/

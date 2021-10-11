@@ -6,6 +6,7 @@ from .base_model import BaseModel
 from . import networks
 import numpy as np
 from GPUtil import showUtilization as gpu_usage
+from . import dice_loss
 
 class CycleGANModel(BaseModel):
     """
@@ -46,7 +47,7 @@ class CycleGANModel(BaseModel):
             parser.add_argument('--lambda_seg_B', type=float, default=1, help='weight for cycle loss (B -> A -> B)')
             parser.add_argument('--lambda_identity', type=float, default=0, help='use identity mapping. Setting lambda_identity other than 0 has an effect of scaling the weight of the identity mapping loss. For example, if the weight of the identity loss should be 10 times smaller than the weight of the reconstruction loss, please set lambda_identity = 0.1')
             parser.add_argument('--lambda_seg_from_syn', type=float, default=0, help='use to teach segmentor from synthetic data')
-            parser.add_argument('--lambda_gen_from_seg', type=float, default=5, help='use to teach generator from segmentation data')
+            parser.add_argument('--lambda_gen_from_seg', type=float, default=0.5, help='use to teach generator from segmentation data')
             parser.add_argument('--first_gen_from_seg_epoch', type=float, default=100, help='first epoch lambda_gen_from_seg is not 0')
 
         return parser
@@ -60,36 +61,30 @@ class CycleGANModel(BaseModel):
         BaseModel.__init__(self, opt)
         self.phase = self.opt.train_phase if self.opt.isTrain else 0
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        if self.phase != 1:
+        if self.isTrain and self.phase != 1:
             self.loss_names = []
             visual_names_A = ['real_A', 'fake_B', 'ground_truth_seg_A']
             visual_names_B = ['real_B', 'fake_A', 'ground_truth_seg_B']
             # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
-            if self.isTrain :
-                if self.phase == 2: # In phase 1 no Generator and Discriminator
-                    self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'GS_A', 'GS_B']
-                    self.loss_names.append('cycle_A')
-                    self.loss_names.append('cycle_B')
-                    visual_names_A.append('rec_A')
-                    visual_names_B.append('rec_B')
-                if self.opt.lambda_identity > 0.0 :  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
-                    visual_names_A.append('idt_B')
-                    visual_names_B.append('idt_A')
-                if self.phase == 1 or self.phase == 3:
-                    self.loss_names.append('S_A')
-                    self.loss_names.append('S_B')
-                    visual_names_A.append('seg_A')
-                    visual_names_B.append('seg_B')
-                if self.phase == 3 :
-                    self.loss_names.append('S_SYN_A')
-                    self.loss_names.append('S_SYN_B')                
-                    visual_names_A.append('seg_fake_B')
-                    visual_names_B.append('seg_fake_A')
-            else: # Test segmentation
-                    self.loss_names.append('S_A')
-                    self.loss_names.append('S_B')
-                    visual_names_A.append('seg_A')
-                    visual_names_B.append('seg_B')
+            if self.phase == 2: # In phase 1 no Generator and Discriminator
+                self.loss_names = ['D_A', 'G_A', 'cycle_A', 'idt_A', 'D_B', 'G_B', 'cycle_B', 'idt_B', 'GS_A', 'GS_B']
+                self.loss_names.append('cycle_A')
+                self.loss_names.append('cycle_B')
+                visual_names_A.append('rec_A')
+                visual_names_B.append('rec_B')
+            if self.opt.lambda_identity > 0.0 :  # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
+                visual_names_A.append('idt_B')
+                visual_names_B.append('idt_A')
+            if self.phase == 1 or self.phase == 3:
+                self.loss_names.append('S_A')
+                self.loss_names.append('S_B')
+                visual_names_A.append('seg_A')
+                visual_names_B.append('seg_B')
+            if self.phase == 3 :
+                self.loss_names.append('S_SYN_A')
+                self.loss_names.append('S_SYN_B')                
+                visual_names_A.append('seg_fake_B')
+                visual_names_B.append('seg_fake_A')
         else: # Phase 1
             self.loss_names = ['S_A', 'S_B']
             visual_names_A = ['real_A', 'ground_truth_seg_A', 'seg_A']
@@ -188,7 +183,7 @@ class CycleGANModel(BaseModel):
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
-        if self.phase != 1:
+        if self.opt.isTrain and self.phase != 1:
             self.fake_B = self.netG_A(self.real_A)      # G_A(A)
             self.fake_A = self.netG_B(self.real_B)      # G_B(B)
             self.seg_fake_B = self.netS_B(self.fake_B)  # S{G_A(A), Y_A}
@@ -287,8 +282,11 @@ class CycleGANModel(BaseModel):
         self.loss_G.backward()
 
     def seg_loss(self, seg, truth):
-        loss = torch.nn.CrossEntropyLoss()
-        return loss(seg.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), truth.view(-1,1).squeeze().contiguous().view(-1).long())
+        # loss = torch.nn.CrossEntropyLoss()
+        # return loss(seg.permute(0, 2, 3, 4, 1).contiguous().view(-1,8), truth.view(-1,1).squeeze().contiguous().view(-1).long())
+        loss = dice_loss.DC_and_CE_loss({'batch_dice': True, 'smooth': 1e-5, 'do_bg': False, 'square': False}, {}) 
+        return loss.forward(seg, truth)
+
 
     def backward_S(self):
         """Calculate the loss for segmentors S_A and S_B"""
@@ -312,7 +310,7 @@ class CycleGANModel(BaseModel):
     def get_segmentation_by_max(self):
         self.seg_A = self.seg_A.argmax(dim=1, keepdim=True)
         self.seg_B = self.seg_B.argmax(dim=1, keepdim=True)
-        if self.phase != 1:
+        if self.opt.isTrain and self.phase != 1:
             self.seg_fake_B = self.seg_fake_B.argmax(dim=1, keepdim=True)
             self.seg_fake_A = self.seg_fake_A.argmax(dim=1, keepdim=True)
 
