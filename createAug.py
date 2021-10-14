@@ -149,8 +149,8 @@ class DataLoaderDataset():
                 mr_img = mr_subject.t1.data
                 ct_label = ct_subject.label.data
                 mr_label = mr_subject.label.data
-                if index % self.ct_size == 0:
-                    save3Dimage_numpy(ct_label.squeeze(), "Images_Print/ct_{}_label".format(index))
+                # if index % self.ct_size == 0:
+                    # save3Dimage_numpy(ct_label.squeeze(), "Images_Print/ct_{}_label".format(index))
 
             else:
                 ct_subject_transformed = self.transform_ct(ct_subject)
@@ -162,9 +162,10 @@ class DataLoaderDataset():
                 mr_label = mr_subject_transformed.label.data.numpy()
         
         else:
-            if (index % self.mr_size) in [0,1,9,10,11]:
+            orientation_list = [1] if self.test else [0,1,9,10,11]
+            if (index % self.mr_size) in orientation_list:
             # if (index % self.mr_size) in [1]:
-                print("Before", ct_img.shape, mr_img.shape)
+                # print("Before", ct_img.shape, mr_img.shape)
                 mr_img = mr_img[:,112:400,:,112:400]
                 mr_label = mr_label[:,112:400,:,112:400]
                 mr_img = skTrans.resize(mr_img, (mr_img.shape[0], 256, 256, 256), order=1, preserve_range=True,  anti_aliasing=True)
@@ -172,9 +173,9 @@ class DataLoaderDataset():
                 ct_scale = ct_img.shape[1]/256
                 ct_img = skTrans.resize(ct_img, (ct_img.shape[0], int(ct_img.shape[1]/ct_scale), int(ct_img.shape[2]/ct_scale), int(ct_img.shape[3]/ct_scale)), order=1, preserve_range=True,  anti_aliasing=True)
                 ct_label = skTrans.resize(ct_label, (ct_label.shape[0], int(ct_label.shape[1]/ct_scale), int(ct_label.shape[2]/ct_scale), int(ct_label.shape[3]/ct_scale)), order=0, preserve_range=True, anti_aliasing=False)
-                print("After", ct_img.shape, mr_img.shape)
+                # print("After", ct_img.shape, mr_img.shape)
             else: 
-                print("Before", ct_img.shape, mr_img.shape)
+                # print("Before", ct_img.shape, mr_img.shape)
                 # mr_img = mr_img[:,:,mr_img.shape[2]//2-mr_img.shape[1]//2:mr_img.shape[2]//2+mr_img.shape[1]//2,:]
                 # mr_label = mr_label[:,:,mr_label.shape[2]//2-mr_label.shape[1]//2:mr_label.shape[2]//2+mr_label.shape[1]//2,:]
                 ct_scale = ct_img.shape[1]/256
@@ -189,12 +190,12 @@ class DataLoaderDataset():
                     # else:
                         # mr_img = skTrans.resize(mr_img, (mr_img.shape[0], int(mr_img.shape[1]/mr_scale), int(mr_img.shape[2]/mr_scale), int(mr_img.shape[3]/mr_scale)), order=1, preserve_range=True,  anti_aliasing=True)
                         # mr_label = skTrans.resize(mr_label, (mr_label.shape[0], int(mr_label.shape[1]/mr_scale), int(mr_label.shape[2]/mr_scale), int(mr_label.shape[3]/mr_scale)), order=0, preserve_range=True, anti_aliasing=False)
-                print("After", ct_img.shape, mr_img.shape)
+                # print("After", ct_img.shape, mr_img.shape)
 
-            save3Dimage_numpy(ct_label.squeeze(), "Images_Print/ct_{}_label".format(index))
-            save3Dimage_numpy(ct_img.squeeze(), "Images_Print/ct_{}.png".format(index))
-            save3Dimage_numpy(mr_label.squeeze(), "Images_Print/mr_{}_label.png".format(index))
-            save3Dimage_numpy(mr_img.squeeze(), "Images_Print/mr_{}.png".format(index))
+            # save3Dimage_numpy(ct_label.squeeze(), "Images_Print/ct_{}_label".format(index))
+            # save3Dimage_numpy(ct_img.squeeze(), "Images_Print/ct_{}.png".format(index))
+            # save3Dimage_numpy(mr_label.squeeze(), "Images_Print/mr_{}_label.png".format(index))
+            # save3Dimage_numpy(mr_img.squeeze(), "Images_Print/mr_{}.png".format(index))
 
         print("index", index, "Completed")
 
@@ -220,27 +221,27 @@ if __name__ == '__main__':
     dataset = DataLoaderDataset(dataroot, no_aug=True, test=test, only_resize=only_resize)  # create a dataset given opt.dataset_mode and other options
     dataset_size = len(dataset)    # get the number of images in the dataset.
     print('The number of training images = %d' % dataset_size)
-    foler_name = "SIFA_Aligned_NPZ_Augmented_Dataset_RSA"
+    foler_name = sys.argv[4]
     if test:
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testct'), exist_ok = True)
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testct_labels'), exist_ok = True)
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testmr'), exist_ok = True)
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testmr_labels'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'testct'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'testct_labels'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'testmr'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'testmr_labels'), exist_ok = True)
     else:
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainct'), exist_ok = True)
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainct_labels'), exist_ok = True)
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainmr'), exist_ok = True)
-        os.makedirs(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainmr_labels'), exist_ok = True)       
+        os.makedirs(os.path.join(foler_name, 'trainct'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'trainct_labels'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'trainmr'), exist_ok = True)
+        os.makedirs(os.path.join(foler_name, 'trainmr_labels'), exist_ok = True)       
     for epoch in tqdm(range(1, num_iters+1)):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latrain_freq>        
         for i, data in enumerate(dataset):  # inner loop within one epoch
             if test:
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testct', 'ct_test_{}_image.npz'.format(counter)), data["ct"])
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testct_labels', 'ct_test_{}_label.npz'.format(counter)), data["ct_label"])
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testmr', 'mr_test_{}_image.npz'.format(counter)), data["mr"])
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'testmr_labels', 'mr_test_{}_label.npz'.format(counter)), data["mr_label"])
+                np.savez_compressed(os.path.join(foler_name, 'testct', 'ct_test_{}_image.npz'.format(counter)), data["ct"])
+                np.savez_compressed(os.path.join(foler_name, 'testct_labels', 'ct_test_{}_label.npz'.format(counter)), data["ct_label"])
+                np.savez_compressed(os.path.join(foler_name, 'testmr', 'mr_test_{}_image.npz'.format(counter)), data["mr"])
+                np.savez_compressed(os.path.join(foler_name, 'testmr_labels', 'mr_test_{}_label.npz'.format(counter)), data["mr_label"])
             else:
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainct', 'ct_train_{}_image.npz'.format(counter)), data["ct"])
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainct_labels', 'ct_train_{}_label.npz'.format(counter)), data["ct_label"])
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainmr', 'mr_train_{}_image.npz'.format(counter)), data["mr"])
-                np.savez_compressed(os.path.join('/mnt/storage/datasets/ct_mri_3d_dataset/' ,foler_name, 'trainmr_labels', 'mr_train_{}_label.npz'.format(counter)), data["mr_label"])
+                np.savez_compressed(os.path.join(foler_name, 'trainct', 'ct_train_{}_image.npz'.format(counter)), data["ct"])
+                np.savez_compressed(os.path.join(foler_name, 'trainct_labels', 'ct_train_{}_label.npz'.format(counter)), data["ct_label"])
+                np.savez_compressed(os.path.join(foler_name, 'trainmr', 'mr_train_{}_image.npz'.format(counter)), data["mr"])
+                np.savez_compressed(os.path.join(foler_name, 'trainmr_labels', 'mr_train_{}_label.npz'.format(counter)), data["mr_label"])
             counter += 1

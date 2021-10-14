@@ -62,8 +62,8 @@ def save3Dimage_numpy(img3d, path, label=None):
         print("labels", np.unique(img3d))
         if "_B" in label:
             img3d = img3d[:, 50:230, :]
-        ax3.imshow(img3d[:, :, img_shape[2]//2+5], cmap=cmap)
-        # ax3.title.set_text("Middle Z")
+        ax3.imshow(img3d[:, :, img_shape[2]//2-5], cmap='gray')
+
         ax3.axis('off') 
 
         plt.savefig(path)
