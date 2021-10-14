@@ -16,19 +16,25 @@ cd Or-Leo_Final_Prj
   - For pip users, please type the command `pip install -r requirements.txt`.
   - For Conda users, you can create a new Conda environment using `conda env create -f environment.yml`.
 
+## Augmentation
+- Create spatial augmentation
+    ```bash
+    python createAug.py <PATH_TO_DATASET> train <NUM_ITERS> <OUTPUT_FOLDER_NAME
+    ```
+    
 ## Train
 - Train a model:
   - Phase 1:
     ```bash
-    python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --crop_size 256 --only_seg --max_dataset_size 200 --name phase_1 --train_phase 1 [--four_labels]
+    python train.py --dataroot <PATH_TO_DATASET> --model cycle_gan --crop_size_z 32 --crop_size 256 --only_seg --max_dataset_size 200 --name phase_1 --train_phase 1 [--four_labels]
     ```
   - Phase 2:
     ```bash
-    python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --crop_size 256 --load_seg --load_name phase_1 --max_dataset_size 200 --name phase_2 --train_phase 2 [--four_labels]
+    python train.py --dataroot <PATH_TO_DATASET> --model cycle_gan --crop_size_z 32 --crop_size 256 --load_seg --load_name phase_1 --max_dataset_size 200 --name phase_2 --train_phase 2 [--four_labels]
     ``` 
   - Phase 3:
     ```bash
-    python train.py --dataroot dataset_path/ --model cycle_gan --crop_size_z 32 --crop_size 256 --load_all_networks --load_name phase_2 --max_dataset_size 200 --name phase_2 --lambda_seg_from_syn 0.5 --train_phase 3 [--four_labels]
+    python train.py --dataroot <PATH_TO_DATASET> --model cycle_gan --crop_size_z 32 --crop_size 256 --load_all_networks --load_name phase_2 --max_dataset_size 200 --name phase_2 --lambda_seg_from_syn 0.5 --train_phase 3 [--four_labels]
     ``` 
 
 - To see more intermediate results, check out `./checkpoints/MODEL_NAME/web/index.html`.
