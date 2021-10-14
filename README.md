@@ -8,8 +8,8 @@
 
 - Clone this repo:
 ```bash
-git clone https://github.com/orhir/Or-Leo_Final_Prj
-cd Or-Leo_Final_Prj
+git clone https://github.com/orhir/Shape-consistent-Generative-Adversarial-Networks-for-multi-modal-Medical-segmentation-maps
+cd Shape-consistent-Generative-Adversarial-Networks-for-multi-modal-Medical-segmentation-maps
 ```
 
 - Install [PyTorch](http://pytorch.org) and 0.4+ and other dependencies (e.g., torchvision, [visdom](https://github.com/facebookresearch/visdom) and [dominate](https://github.com/Knio/dominate)).
