@@ -1,3 +1,9 @@
+# 3D Shape Consistent GAN
+PyTorch implementation of "Shape-consistent Generative Adversarial Networks for multi-modal Medical segmentation maps", ISBI 2022.
+Paper: https://arxiv.org/abs/2201.09693
+
+![alt text](https://github.com/orhir/3D-Shape-Consistent-GAN/blob/master/arch.png)
+
 ## Prerequisites
 - Linux or macOS
 - Python 3
